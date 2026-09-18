@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-unit-test:
+    name: Build & unit/integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # The MAUI Hybrid head (SkillBridge/SkillBridge) and the Aspire AppHost are
+      # intentionally excluded: the AppHost fails to build via the CLI on a pre-existing,
+      # unrelated NETSDK1005 quirk with the multi-targeted MAUI project, and MAUI's own
+      # platform targets (android/ios/maccatalyst/windows) need workloads this runner
+      # doesn't have. Every other project builds and runs fine standalone.
+      - name: Restore
+        run: |
+          dotnet restore SkillBridge.ApiService/SkillBridge.ApiService.csproj
+          dotnet restore SkillBridge.ApiService.Tests/SkillBridge.ApiService.Tests.csproj
+          dotnet restore SkillBridge/SkillBridge.Web/SkillBridge.Web.csproj
+          dotnet restore SkillBridge.E2E.Tests/SkillBridge.E2E.Tests.csproj
+
+      - name: Build ApiService
+        run: dotnet build SkillBridge.ApiService/SkillBridge.ApiService.csproj --no-restore --configuration Release
+
+      - name: Build Web (+ Web.Client)
+        run: dotnet build SkillBridge/SkillBridge.Web/SkillBridge.Web.csproj --no-restore --configuration Release
+
+      - name: Build E2E test project
+        run: dotnet build SkillBridge.E2E.Tests/SkillBridge.E2E.Tests.csproj --no-restore --configuration Release
+
+      - name: Run ApiService unit/integration tests
+        run: >
+          dotnet test SkillBridge.ApiService.Tests/SkillBridge.ApiService.Tests.csproj
+          --no-restore --configuration Release
+          --logger "trx;LogFileName=apiservice-tests.trx"
+          --results-directory ./test-results
+
+      - name: Upload unit/integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apiservice-test-results
+          path: test-results/*.trx
+
+  e2e-test:
+    name: End-to-end tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: build-and-unit-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build ApiService
+        run: dotnet build SkillBridge.ApiService/SkillBridge.ApiService.csproj --configuration Release
+
+      - name: Build Web (+ Web.Client)
+        run: dotnet build SkillBridge/SkillBridge.Web/SkillBridge.Web.csproj --configuration Release
+
+      - name: Build E2E test project
+        run: dotnet build SkillBridge.E2E.Tests/SkillBridge.E2E.Tests.csproj --configuration Release
+
+      - name: Install Playwright browsers
+        run: pwsh SkillBridge.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      # Runs the real DLLs directly rather than `dotnet run`, so launchSettings.json's
+      # profiles don't apply — ASPNETCORE_URLS is set explicitly below to compensate.
+      - name: Start SkillBridge.ApiService
+        run: nohup dotnet bin/Release/net10.0/SkillBridge.ApiService.dll > ${{ github.workspace }}/apiservice.log 2>&1 &
+        working-directory: SkillBridge.ApiService
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://localhost:5056
+          # The real (non-test-factory) rate limiter defaults to 20 req/60s per IP, which a
+          # full E2E run comfortably exceeds (each test registers at least one account) —
+          # widened here the same way ApiServiceTestFactory widens it for the xUnit suite.
+          RateLimiting__AuthPermitLimit: '10000'
+
+      # Aspire service discovery's env-var format uses a hyphen in the service name
+      # ("skillbridge-apiservice"), which only works via a literal `env:` key (not bash
+      # `export`/inline assignment, which reject hyphenated identifiers) — see
+      # SkillBridge.Web/Program.cs's own comment on this same scheme.
+      - name: Start SkillBridge.Web
+        run: nohup dotnet bin/Release/net10.0/SkillBridge.Web.dll > ${{ github.workspace }}/web.log 2>&1 &
+        working-directory: SkillBridge/SkillBridge.Web
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://localhost:5121
+          services__skillbridge-apiservice__http__0: http://localhost:5056
+
+      - name: Wait for both services to be ready
+        run: |
+          echo "Waiting for ApiService..."
+          for i in $(seq 1 30); do curl -sf http://localhost:5056/health && break; [ "$i" -eq 30 ] && exit 1; sleep 2; done
+          echo "Waiting for Web..."
+          for i in $(seq 1 30); do curl -sf http://localhost:5121/health && break; [ "$i" -eq 30 ] && exit 1; sleep 2; done
+
+      - name: Run E2E tests
+        run: >
+          dotnet test SkillBridge.E2E.Tests/SkillBridge.E2E.Tests.csproj
+          --configuration Release
+          --logger "trx;LogFileName=e2e-tests.trx"
+          --results-directory ./test-results
+        env:
+          SKILLBRIDGE_E2E_BASE_URL: http://localhost:5121
+
+      - name: Show server logs on failure
+        if: failure()
+        run: |
+          echo "--- ApiService log ---"; cat apiservice.log || true
+          echo "--- Web log ---"; cat web.log || true
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: test-results/*.trx
