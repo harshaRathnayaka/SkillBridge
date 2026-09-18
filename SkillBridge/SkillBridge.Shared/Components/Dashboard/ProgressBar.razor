@@ -1,0 +1,10 @@
+<div class="dashboard-progress" role="progressbar" aria-valuenow="@Percent" aria-valuemin="0" aria-valuemax="100">
+    <div class="dashboard-progress-track">
+        <div class="dashboard-progress-fill" style="width: @(Math.Clamp(Percent, 0, 100))%"></div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public int Percent { get; set; }
+}

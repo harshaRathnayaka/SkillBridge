@@ -1,0 +1,19 @@
+<div class="stat-tile">
+    <div class="stat-tile-label">@Label</div>
+    <div class="stat-tile-value">@Value</div>
+    @if (!string.IsNullOrEmpty(SubLabel))
+    {
+        <div class="stat-tile-sublabel">@SubLabel</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = "";
+
+    [Parameter]
+    public string? SubLabel { get; set; }
+}

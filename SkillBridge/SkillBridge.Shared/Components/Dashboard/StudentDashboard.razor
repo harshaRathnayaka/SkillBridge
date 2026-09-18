@@ -1,0 +1,59 @@
+<div class="stat-tile-grid">
+    <StatTile Label="Active courses" Value="@Data.ActiveCourses.ToString()" SubLabel="@($"{Data.LessonsRemainingTotal} lessons remaining")" />
+    <StatTile Label="Teachers" Value="@Data.DistinctTeachers.ToString()" SubLabel="@($"across {Data.DistinctTeachers} subjects")" />
+    <StatTile Label="Hours this month" Value="@(Data.HoursThisMonth?.ToString() ?? "—")" />
+    <StatTile Label="Avg. progress" Value="@($"{Data.AvgProgressPercent}%")" SubLabel="keep going" />
+</div>
+
+<div class="dashboard-columns">
+    <div class="dashboard-main">
+        @foreach (var course in Data.Courses)
+        {
+            <div class="dashboard-card">
+                <div class="dashboard-card-head">
+                    <div>
+                        <div class="dashboard-card-title">@course.Title</div>
+                        <div class="text-muted small">with @course.TeacherName</div>
+                    </div>
+                    <span class="dashboard-badge">@course.LessonsRemaining lessons left</span>
+                </div>
+                <ProgressBar Percent="course.ProgressPercent" />
+                <div class="dashboard-card-foot">
+                    <span class="text-muted small">Next: @course.NextLessonTitle</span>
+                </div>
+            </div>
+        }
+        @if (Data.Courses.Count == 0)
+        {
+            <p class="text-muted small">No active courses yet.</p>
+        }
+    </div>
+    <div class="dashboard-side">
+        <div class="dashboard-card">
+            <h3 class="dashboard-card-heading">Upcoming sessions</h3>
+            @foreach (var session in Data.UpcomingSessions)
+            {
+                <div class="dashboard-list-item">
+                    <div class="text-muted small">@session.At.ToLocalTime().ToString("ddd · HH:mm")</div>
+                    <div>@session.Title</div>
+                    <div class="text-muted small">@session.WithName</div>
+                </div>
+            }
+        </div>
+        <div class="dashboard-card">
+            <h3 class="dashboard-card-heading">Suggested teachers</h3>
+            @foreach (var teacher in Data.SuggestedTeachers)
+            {
+                <div class="dashboard-list-item">
+                    <div>@teacher.Name</div>
+                    <div class="text-muted small">@teacher.Subject · @teacher.RateLabel</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public StudentDashboardInfo Data { get; set; } = null!;
+}

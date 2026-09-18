@@ -1,0 +1,34 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Aspire / local dev artifacts
+*.db
+*.db-shm
+*.db-wal
+
+# User-specific config overrides (secrets, local endpoints)
+appsettings.*.local.json
+*.env
+.env
+
+# Playwright
+SkillBridge.E2E.Tests/bin/
+SkillBridge.E2E.Tests/obj/
+playwright-report/
+test-results/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

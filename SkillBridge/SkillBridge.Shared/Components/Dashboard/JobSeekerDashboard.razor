@@ -1,0 +1,57 @@
+<div class="stat-tile-grid">
+    <StatTile Label="New matches" Value="@Data.NewMatchesThisWeek.ToString()" SubLabel="this week" />
+    <StatTile Label="Applications" Value="@Data.ApplicationsCount.ToString()" SubLabel="@($"{Data.AtInterview} at interview")" />
+    <StatTile Label="Saved roles" Value="@Data.SavedRoles.ToString()" />
+    <StatTile Label="Profile strength" Value="@(Data.ProfileStrengthPercent is { } p ? $"{p}%" : "—")" SubLabel="@Data.ProfileStrengthNote" />
+</div>
+
+<div class="dashboard-columns">
+    <div class="dashboard-main">
+        <h3 class="dashboard-card-heading">Newest roles for you</h3>
+        @foreach (var match in Data.Matches)
+        {
+            <div class="dashboard-card">
+                <div class="dashboard-card-head">
+                    <div>
+                        <div class="dashboard-card-title">@match.Title</div>
+                        <div class="text-muted small">@match.Company · @match.Location · @match.WorkMode</div>
+                    </div>
+                    <span class="dashboard-badge">@match.PostedLabel</span>
+                </div>
+                <div class="dashboard-card-foot">
+                    <span class="text-muted small">@match.EmploymentType · @match.RateLabel</span>
+                </div>
+            </div>
+        }
+        @if (Data.Matches.Count == 0)
+        {
+            <p class="text-muted small">No new roles right now — check back soon.</p>
+        }
+    </div>
+    <div class="dashboard-side">
+        <div class="dashboard-card">
+            <h3 class="dashboard-card-heading">My applications</h3>
+            @foreach (var application in Data.MyApplications)
+            {
+                <div class="dashboard-list-item">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div>@application.Title</div>
+                            <div class="text-muted small">@application.Company · @application.AppliedLabel</div>
+                        </div>
+                        <StatusPill Text="@application.Stage" />
+                    </div>
+                </div>
+            }
+            @if (Data.MyApplications.Count == 0)
+            {
+                <p class="text-muted small mb-0">You haven't applied to anything yet.</p>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public JobSeekerDashboardInfo Data { get; set; } = null!;
+}

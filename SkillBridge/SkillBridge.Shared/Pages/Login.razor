@@ -1,0 +1,112 @@
+@page "/login"
+@layout EmptyLayout
+@inject IAuthApiClient AuthApiClient
+@inject IAuthTokenStore TokenStore
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in</PageTitle>
+
+<div class="auth-shell">
+    <AuthPromoPanel />
+
+    <div class="auth-form-panel">
+        <div class="auth-topbar">
+            New to SkillBridge?
+            <a href="/register" class="ms-2 fw-semibold">Create account</a>
+        </div>
+
+        <div class="auth-form-wrap">
+            <div class="auth-eyebrow" style="color: var(--sb-primary);">Welcome back</div>
+            <h2>Sign in to your account</h2>
+            <p class="text-muted small mb-4">Continue to your SkillBridge workspace.</p>
+
+            @if (comingSoonMessage is not null)
+            {
+                <div class="alert alert-secondary py-2 small">@comingSoonMessage</div>
+            }
+
+            <div class="d-flex gap-2 mb-3">
+                <button type="button" class="btn btn-outline-secondary w-100" @onclick='() => ShowComingSoon("Google")'>Google</button>
+                <button type="button" class="btn btn-outline-secondary w-100" @onclick='() => ShowComingSoon("Apple")'>Apple</button>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 text-muted small mb-3">
+                <hr class="flex-grow-1" /> or continue with email <hr class="flex-grow-1" />
+            </div>
+
+            <EditForm Model="@model" OnValidSubmit="HandleValidSubmit">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                @if (errorMessage is not null)
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Email address</label>
+                    <InputText class="form-control" @bind-Value="model.Email" placeholder="you@example.com" />
+                    <ValidationMessage For="() => model.Email" />
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <label class="form-label">Password</label>
+                        <a href="/forgot-password" class="small">Forgot password?</a>
+                    </div>
+                    <div class="input-group">
+                        <InputText type="@(showPassword ? "text" : "password")" class="form-control" @bind-Value="model.Password" placeholder="Enter your password" />
+                        <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword">
+                            @(showPassword ? "Hide" : "Show")
+                        </button>
+                    </div>
+                    <ValidationMessage For="() => model.Password" />
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox class="form-check-input" @bind-Value="model.RememberMe" id="rememberMe" />
+                    <label class="form-check-label" for="rememberMe">Keep me signed in</label>
+                </div>
+
+                <button class="btn btn-primary w-100" type="submit" disabled="@isSubmitting">
+                    @(isSubmitting ? "Signing in..." : "Sign in →")
+                </button>
+            </EditForm>
+
+            <p class="text-muted small text-center mt-4 mb-0">
+                By continuing, you agree to SkillBridge's Terms of Service and Privacy Policy.
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly LoginRequest model = new();
+    private string? errorMessage;
+    private string? comingSoonMessage;
+    private bool isSubmitting;
+    private bool showPassword;
+
+    private void ShowComingSoon(string provider) => comingSoonMessage = $"Signing in with {provider} is coming soon — use your email and password for now.";
+
+    private async Task HandleValidSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        var deviceId = await TokenStore.GetOrCreateDeviceIdAsync();
+        var result = await AuthApiClient.LoginAsync(model.Email, model.Password, deviceId, rememberMe: model.RememberMe);
+
+        if (!result.Succeeded || result.Payload is null)
+        {
+            errorMessage = result.Errors.FirstOrDefault() ?? "Sign in failed. Please try again.";
+            isSubmitting = false;
+            return;
+        }
+
+        await TokenStore.SaveTokensAsync(result.Payload.AccessToken, result.Payload.RefreshToken, result.Payload.ExpiresAtUtc);
+        // Forces a full reload rather than an in-place SPA navigation: AppAuthenticationStateProvider
+        // reads tokens via IJSRuntime (Web) or SecureStorage (MAUI), which only re-evaluates
+        // cleanly on a fresh page load, not an in-place render.
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

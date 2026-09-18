@@ -1,0 +1,32 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="stylesheet" href="_content/SkillBridge.Shared/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="_content/SkillBridge.Shared/app.css" />
+    <link rel="stylesheet" href="SkillBridge.Web.styles.css" />
+    <ImportMap />
+    <link rel="icon" type="image/png" href="_content/SkillBridge.Shared/favicon.png" />
+    <HeadOutlet @rendermode="new InteractiveAutoRenderMode(prerender: false)" />
+</head>
+
+<body>
+    <!--
+        Prerendering is disabled here: auth state is derived client-side (localStorage via
+        AppAuthenticationStateProvider — see SkillBridge.Shared/Services), which has no JS
+        interop available during a static prerender pass. With prerendering on, the
+        AuthorizeRouteView's NotAuthorized redirect would fire against a falsely-Anonymous
+        prerendered state before the real interactive circuit ever got a chance to read the
+        actual tokens, redirecting signed-in users back to /login. This trades away
+        prerendering's instant-first-paint benefit for correctness of the auth flow.
+    -->
+    <Routes @rendermode="new InteractiveAutoRenderMode(prerender: false)" />
+    <ReconnectModal />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>

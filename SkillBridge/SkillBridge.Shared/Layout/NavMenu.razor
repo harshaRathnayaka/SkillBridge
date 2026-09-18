@@ -1,0 +1,54 @@
+@inject IAuthApiClient AuthApiClient
+@inject IAuthTokenStore TokenStore
+@inject NavigationManager Navigation
+
+<header class="app-topbar">
+    <div class="app-topbar-row">
+        <a class="app-brand" href="">
+            <span class="mark">S</span> SkillBridge
+        </a>
+
+        <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+        <div class="app-menu">
+            <AuthorizeView>
+                <Authorized Context="authContext">
+                    <nav class="app-menu-links">
+                        <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
+                        <NavLink class="app-nav-link" href="counter">Counter</NavLink>
+                        <NavLink class="app-nav-link" href="weather">Weather</NavLink>
+                        <NavLink class="app-nav-link" href="change-password">Change password</NavLink>
+                    </nav>
+                    <div class="app-menu-actions">
+                        <span class="app-role-pill" data-testid="role-badge">
+                            Signed in as @authContext.User.Identity?.Name
+                            (@string.Join(", ", authContext.User.Claims.Where(c => c.Type == System.Security.Claims.ClaimTypes.Role).Select(c => c.Value.ToFriendlyName())))
+                        </span>
+                        <button class="btn btn-sm btn-outline-light" @onclick="HandleLogoutAsync">Logout</button>
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <div class="app-menu-actions app-menu-actions-end">
+                        <NavLink class="app-nav-link" href="login">Sign in</NavLink>
+                        <NavLink class="btn btn-sm btn-primary" href="register">Create account</NavLink>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</header>
+
+@code {
+    private async Task HandleLogoutAsync()
+    {
+        var deviceId = await TokenStore.GetOrCreateDeviceIdAsync();
+        var tokens = await TokenStore.GetTokensAsync();
+        if (tokens is not null)
+        {
+            await AuthApiClient.LogoutAsync(tokens.RefreshToken, deviceId);
+        }
+
+        await TokenStore.ClearAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

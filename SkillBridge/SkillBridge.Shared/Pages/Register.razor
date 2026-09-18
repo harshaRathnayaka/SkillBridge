@@ -1,0 +1,109 @@
+@page "/register"
+@layout EmptyLayout
+@inject IAuthApiClient AuthApiClient
+@inject IAuthTokenStore TokenStore
+@inject NavigationManager Navigation
+
+<PageTitle>Create your account</PageTitle>
+
+<div class="auth-shell">
+    <AuthPromoPanel />
+
+    <div class="auth-form-panel">
+        <div class="auth-topbar">
+            Already have an account?
+            <a href="/login" class="ms-2 fw-semibold">Sign in</a>
+        </div>
+
+        <div class="auth-form-wrap">
+            <div class="auth-eyebrow" style="color: var(--sb-primary);">Get started</div>
+            <h2>Create your account</h2>
+            <p class="text-muted small mb-4">Set up your SkillBridge workspace in a minute.</p>
+
+            <EditForm Model="@model" OnValidSubmit="HandleValidSubmit">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                @if (errorMessage is not null)
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Full name</label>
+                    <InputText class="form-control" @bind-Value="model.DisplayName" placeholder="Ada Lovelace" />
+                    <ValidationMessage For="() => model.DisplayName" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Email address</label>
+                    <InputText class="form-control" @bind-Value="model.Email" placeholder="you@example.com" />
+                    <ValidationMessage For="() => model.Email" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <div class="input-group">
+                        <InputText type="@(showPassword ? "text" : "password")" class="form-control" @bind-Value="model.Password" placeholder="At least 8 characters" />
+                        <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword">
+                            @(showPassword ? "Hide" : "Show")
+                        </button>
+                    </div>
+                    <ValidationMessage For="() => model.Password" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Confirm password</label>
+                    <InputText type="@(showPassword ? "text" : "password")" class="form-control" @bind-Value="model.ConfirmPassword" placeholder="Re-enter your password" />
+                    <ValidationMessage For="() => model.ConfirmPassword" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">I am a...</label>
+                    <InputSelect class="form-select" @bind-Value="model.Role">
+                        <option value="">Choose a role</option>
+                        @foreach (var role in Enum.GetValues<Role>())
+                        {
+                            <option value="@role">@role.ToFriendlyName()</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => model.Role" />
+                </div>
+
+                <button class="btn btn-primary w-100" type="submit" disabled="@isSubmitting">
+                    @(isSubmitting ? "Creating account..." : "Create account")
+                </button>
+            </EditForm>
+
+            <p class="text-muted small text-center mt-4 mb-0">
+                By continuing, you agree to SkillBridge's Terms of Service and Privacy Policy.
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly RegisterRequest model = new();
+    private string? errorMessage;
+    private bool isSubmitting;
+    private bool showPassword;
+
+    private async Task HandleValidSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        var deviceId = await TokenStore.GetOrCreateDeviceIdAsync();
+        var result = await AuthApiClient.RegisterAsync(
+            model.Email, model.Password, model.DisplayName, model.Role!.Value.ToString(), deviceId);
+
+        if (!result.Succeeded || result.Payload is null)
+        {
+            errorMessage = result.Errors.FirstOrDefault() ?? "Registration failed. Please try again.";
+            isSubmitting = false;
+            return;
+        }
+
+        await TokenStore.SaveTokensAsync(result.Payload.AccessToken, result.Payload.RefreshToken, result.Payload.ExpiresAtUtc);
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

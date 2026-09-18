@@ -1,0 +1,56 @@
+<div class="stat-tile-grid">
+    <StatTile Label="Open roles" Value="@Data.OpenRoles.ToString()" SubLabel="@($"{Data.PostedThisWeek} posted this week")" />
+    <StatTile Label="Applicants" Value="@Data.Applicants.ToString()" SubLabel="@($"{Data.NeedReview} need review")" />
+    <StatTile Label="Interviews" Value="@Data.Interviews.ToString()" />
+    <StatTile Label="Time to hire" Value="@(Data.TimeToHireDaysMedian is { } days ? $"{days} days" : "—")" SubLabel="median, last quarter" />
+</div>
+
+<div class="dashboard-columns">
+    <div class="dashboard-main">
+        @foreach (var candidate in Data.Candidates)
+        {
+            <div class="dashboard-card">
+                <div class="dashboard-card-head">
+                    <div>
+                        <div class="dashboard-card-title">@candidate.Name</div>
+                        <div class="text-muted small">@candidate.Headline</div>
+                    </div>
+                    <StatusPill Text="@candidate.Stage" />
+                </div>
+                <div class="dashboard-card-foot">
+                    <span class="text-muted small">@candidate.RateLabel · applied @candidate.AppliedLabel</span>
+                </div>
+            </div>
+        }
+        @if (Data.Candidates.Count == 0)
+        {
+            <p class="text-muted small">No applicants yet.</p>
+        }
+    </div>
+    <div class="dashboard-side">
+        <div class="dashboard-card">
+            <h3 class="dashboard-card-heading">Upcoming sessions</h3>
+            @foreach (var session in Data.UpcomingSessions)
+            {
+                <div class="dashboard-list-item">
+                    <div class="text-muted small">@session.At.ToLocalTime().ToString("ddd · HH:mm")</div>
+                    <div>@session.Title</div>
+                    <div class="text-muted small">@session.WithName</div>
+                </div>
+            }
+            @if (Data.UpcomingSessions.Count == 0)
+            {
+                <p class="text-muted small mb-0">Nothing scheduled.</p>
+            }
+        </div>
+        <div class="dashboard-card">
+            <h3 class="dashboard-card-heading">Need more candidates?</h3>
+            <p class="text-muted small mb-0">Post a role and it goes live to job seekers instantly.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public EmployerDashboardInfo Data { get; set; } = null!;
+}

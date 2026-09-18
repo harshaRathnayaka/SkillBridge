@@ -1,0 +1,13 @@
+<Solution>
+  <Project Path="SkillBridge.AppHost/SkillBridge.AppHost.csproj" />
+  <Project Path="SkillBridge.ApiService/SkillBridge.ApiService.csproj" />
+  <Project Path="SkillBridge.ApiService.Tests/SkillBridge.ApiService.Tests.csproj" />
+  <Project Path="SkillBridge.E2E.Tests/SkillBridge.E2E.Tests.csproj" />
+  <Project Path="SkillBridge.ServiceDefaults/SkillBridge.ServiceDefaults.csproj" />
+  <Project Path="SkillBridge/SkillBridge.Shared/SkillBridge.Shared.csproj" />
+  <Project Path="SkillBridge/SkillBridge.Web.Client/SkillBridge.Web.Client.csproj" />
+  <Project Path="SkillBridge/SkillBridge.Web/SkillBridge.Web.csproj" />
+  <Project Path="SkillBridge/SkillBridge/SkillBridge.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+</Solution>

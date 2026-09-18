@@ -1,0 +1,64 @@
+<div class="stat-tile-grid">
+    <StatTile Label="Live classes" Value="@Data.LiveClasses.ToString()" SubLabel="@($"{Data.LearnersEnrolledTotal} learners enrolled")" />
+    <StatTile Label="Published materials" Value="@Data.PublishedMaterials.ToString()" SubLabel="@($"{Data.DraftMaterials} drafts waiting")" />
+    <StatTile Label="Earnings (30d)" Value="@Data.EarningsLabel" SubLabel="@(Data.EarningsTrendPercent is { } trend ? $"+{trend:0}% vs last month" : null)" />
+    <StatTile Label="Tutor rating" Value="@(Data.RatingAverage?.ToString("0.0") ?? "—")" SubLabel="@(Data.RatingCount is { } count ? $"from {count} reviews" : null)" />
+</div>
+
+<div class="dashboard-columns">
+    <div class="dashboard-main">
+        @foreach (var course in Data.Courses)
+        {
+            <div class="dashboard-card">
+                <div class="dashboard-card-head">
+                    <div>
+                        <div class="dashboard-card-title">@course.Title</div>
+                        <div class="text-muted small">@course.LearnersEnrolled learners · @(course.NextSessionAt is { } at ? $"next {at.ToLocalTime():ddd HH:mm}" : "next async")</div>
+                    </div>
+                    <StatusPill Text="@course.Mode" />
+                </div>
+                <div class="dashboard-card-foot">
+                    <span class="text-muted small">★ @course.RatingAverage.ToString("0.0")</span>
+                    <span class="text-muted small">@course.PriceLabel</span>
+                </div>
+            </div>
+        }
+        @if (Data.Courses.Count == 0)
+        {
+            <p class="text-muted small">No courses published yet.</p>
+        }
+    </div>
+    <div class="dashboard-side">
+        <div class="dashboard-card">
+            <h3 class="dashboard-card-heading">Upcoming sessions</h3>
+            @foreach (var session in Data.UpcomingSessions)
+            {
+                <div class="dashboard-list-item">
+                    <div class="text-muted small">@session.At.ToLocalTime().ToString("ddd · HH:mm")</div>
+                    <div>@session.Title</div>
+                    <div class="text-muted small">@session.WithName</div>
+                </div>
+            }
+        </div>
+        <div class="dashboard-card">
+            <h3 class="dashboard-card-heading">Recent materials</h3>
+            @foreach (var material in Data.RecentMaterials)
+            {
+                <div class="dashboard-list-item">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div>@material.Title</div>
+                            <div class="text-muted small">@material.CourseTitle</div>
+                        </div>
+                        <StatusPill Text="@material.Status" />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public TutorDashboardInfo Data { get; set; } = null!;
+}

@@ -1,0 +1,33 @@
+@page "/"
+@using SkillBridge.Shared.Services
+@inject IFormFactor FormFactor
+
+<PageTitle>Home</PageTitle>
+
+<AuthorizeView>
+    <Authorized Context="authContext">
+        <div class="home-hero">
+            <h1>Welcome back, @authContext.User.Identity?.Name</h1>
+            <span class="home-role-pill">@string.Join(", ", authContext.User.Claims.Where(c => c.Type == System.Security.Claims.ClaimTypes.Role).Select(c => c.Value.ToFriendlyName()))</span>
+        </div>
+        <div class="mt-4">
+            <RoleDashboard />
+        </div>
+        <p class="text-muted small mt-3">Running on <em>@factor</em> using <em>@platform</em>.</p>
+    </Authorized>
+    <NotAuthorized>
+        <div class="home-hero">
+            <h1>Welcome to SkillBridge</h1>
+            <p class="text-muted">Build skills. Share knowledge. Find opportunity. One account, four paths.</p>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <a class="btn btn-primary" href="/login">Sign in</a>
+            <a class="btn btn-outline-secondary" href="/register">Create account</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private string factor => FormFactor.GetFormFactor();
+    private string platform => FormFactor.GetPlatform();
+}

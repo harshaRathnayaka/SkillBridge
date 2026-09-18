@@ -1,0 +1,43 @@
+@inject IDashboardApiClient DashboardApiClient
+@inject IAuthTokenStore TokenStore
+
+@if (loading)
+{
+    <p class="text-muted small">Loading your dashboard…</p>
+}
+else if (dashboard is null)
+{
+    <p class="text-muted small">Couldn't load your dashboard right now.</p>
+}
+else if (dashboard.Student is not null)
+{
+    <StudentDashboard Data="dashboard.Student" />
+}
+else if (dashboard.Tutor is not null)
+{
+    <TutorDashboard Data="dashboard.Tutor" />
+}
+else if (dashboard.Employer is not null)
+{
+    <EmployerDashboard Data="dashboard.Employer" />
+}
+else if (dashboard.JobSeeker is not null)
+{
+    <JobSeekerDashboard Data="dashboard.JobSeeker" />
+}
+
+@code {
+    private DashboardInfo? dashboard;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tokens = await TokenStore.GetTokensAsync();
+        if (tokens is not null)
+        {
+            dashboard = await DashboardApiClient.GetDashboardAsync(tokens.AccessToken);
+        }
+
+        loading = false;
+    }
+}
