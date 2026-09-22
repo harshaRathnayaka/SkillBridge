@@ -72,7 +72,7 @@ public static class DashboardEndpoints
             .Where(c => !courseIds.Contains(c.Id))
             .OrderBy(c => c.Title)
             .Take(3)
-            .Select(c => new SuggestedTeacher(c.TeacherName, c.Title, DashboardFormatting.FormatMoney(c.PriceAmount, c.Currency, c.PriceUnitLabel)))
+            .Select(c => new SuggestedTeacher(c.Id, c.TeacherName, c.Title, DashboardFormatting.FormatMoney(c.PriceAmount, c.Currency, c.PriceUnitLabel)))
             .ToListAsync();
 
         return new StudentDashboard(
@@ -102,7 +102,7 @@ public static class DashboardEndpoints
 
         var tutorCourses = courses
             .Select(c => new TutorCourse(
-                c.Title, DashboardFormatting.FormatMode(c.Mode), LearnersFor(c.Id), c.NextSessionAt, c.RatingAverage,
+                c.Id, c.Title, DashboardFormatting.FormatMode(c.Mode), LearnersFor(c.Id), c.NextSessionAt, c.RatingAverage,
                 DashboardFormatting.FormatMoney(c.PriceAmount, c.Currency, c.PriceUnitLabel)))
             .ToList();
 
@@ -113,7 +113,7 @@ public static class DashboardEndpoints
             .ToList();
 
         var recentMaterials = materials
-            .Select(m => new MaterialSummary(m.Title, courses.First(c => c.Id == m.CourseId).Title, m.Status.ToString()))
+            .Select(m => new MaterialSummary(m.Id, m.Title, courses.First(c => c.Id == m.CourseId).Title, m.Status.ToString()))
             .ToList();
 
         return new TutorDashboard(
@@ -146,7 +146,7 @@ public static class DashboardEndpoints
         var weekAgo = DateTimeOffset.UtcNow.AddDays(-7);
 
         var candidates = applications
-            .Select(a => new Candidate(a.ApplicantName, a.ApplicantHeadline, a.Stage.ToString(), a.RateLabel, DashboardFormatting.FormatRelative(a.AppliedAt)))
+            .Select(a => new Candidate(a.Id, a.ApplicantName, a.ApplicantHeadline, a.Stage.ToString(), a.RateLabel, DashboardFormatting.FormatRelative(a.AppliedAt)))
             .ToList();
 
         var upcomingSessions = applications
@@ -188,7 +188,7 @@ public static class DashboardEndpoints
         var matches = unappliedPostings
             .OrderByDescending(j => j.PostedAt)
             .Take(4)
-            .Select(j => new JobMatch(j.Title, j.CompanyDisplayName, j.Location, j.WorkMode, j.EmploymentType, j.RateLabel, DashboardFormatting.FormatRelative(j.PostedAt)))
+            .Select(j => new JobMatch(j.Id, j.Title, j.CompanyDisplayName, j.Location, j.WorkMode, j.EmploymentType, j.RateLabel, DashboardFormatting.FormatRelative(j.PostedAt)))
             .ToList();
 
         var myApplicationPostings = allPostings

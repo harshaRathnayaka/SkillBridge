@@ -26,7 +26,7 @@ public record StudentCourse(
     string Title, string TeacherName, string Mode, int LessonsRemaining,
     int ProgressPercent, string NextLessonTitle, DateTimeOffset? NextSessionAt);
 
-public record SuggestedTeacher(string Name, string Subject, string RateLabel);
+public record SuggestedTeacher(Guid CourseId, string Name, string Subject, string RateLabel);
 
 public record TutorDashboard(
     int LiveClasses,
@@ -42,10 +42,10 @@ public record TutorDashboard(
     IReadOnlyList<MaterialSummary> RecentMaterials);
 
 public record TutorCourse(
-    string Title, string Mode, int LearnersEnrolled, DateTimeOffset? NextSessionAt,
+    Guid Id, string Title, string Mode, int LearnersEnrolled, DateTimeOffset? NextSessionAt,
     decimal RatingAverage, string PriceLabel);
 
-public record MaterialSummary(string Title, string CourseTitle, string Status);
+public record MaterialSummary(Guid Id, string Title, string CourseTitle, string Status);
 
 public record EmployerDashboard(
     int OpenRoles,
@@ -57,7 +57,7 @@ public record EmployerDashboard(
     IReadOnlyList<Candidate> Candidates,
     IReadOnlyList<UpcomingSession> UpcomingSessions);
 
-public record Candidate(string Name, string Headline, string Stage, string RateLabel, string AppliedLabel);
+public record Candidate(Guid ApplicationId, string Name, string Headline, string Stage, string RateLabel, string AppliedLabel);
 
 public record JobSeekerDashboard(
     int NewMatchesThisWeek,
@@ -70,7 +70,7 @@ public record JobSeekerDashboard(
     IReadOnlyList<MyApplication> MyApplications);
 
 public record JobMatch(
-    string Title, string Company, string Location, string WorkMode,
+    Guid JobPostingId, string Title, string Company, string Location, string WorkMode,
     string EmploymentType, string RateLabel, string PostedLabel);
 
 public record MyApplication(string Title, string Company, string Stage, string AppliedLabel);

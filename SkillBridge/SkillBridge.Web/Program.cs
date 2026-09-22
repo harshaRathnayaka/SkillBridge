@@ -26,13 +26,16 @@ public class Program
         builder.Services.AddScoped<AuthenticationStateProvider, AppAuthenticationStateProvider>();
         builder.Services.AddScoped<IAuthTokenStore, BrowserAuthTokenStore>();
 
-        // Talks to the real SkillBridge.ApiService (Aspire service discovery resolves the
-        // "https+http://skillbridge-apiservice" scheme) — used only by this host's own
-        // /api/auth/* passthrough endpoints (Auth/ApiProxyEndpoints.cs), which exist so
-        // Web.Client (WASM) can reach the ApiService same-origin without CORS.
+        // Talks to the real SkillBridge.ApiService — used only by this host's own /api/auth/*
+        // passthrough endpoints (Auth/ApiProxyEndpoints.cs), which exist so Web.Client (WASM)
+        // can reach the ApiService same-origin without CORS. Locally (via the Aspire AppHost),
+        // Aspire's service discovery resolves the "https+http://skillbridge-apiservice" scheme
+        // automatically; outside Aspire (e.g. deployed to Fly.io as a standalone container),
+        // set ApiService:BaseUrl explicitly to the ApiService's real reachable URL.
+        var apiServiceBaseUrl = builder.Configuration["ApiService:BaseUrl"] ?? "https+http://skillbridge-apiservice";
         builder.Services.AddHttpClient("ApiService", client =>
         {
-            client.BaseAddress = new Uri("https+http://skillbridge-apiservice");
+            client.BaseAddress = new Uri(apiServiceBaseUrl);
         });
 
         // Used by Login.razor/Register.razor/NavMenu.razor (shared UI) — points back at this
@@ -42,6 +45,7 @@ public class Program
         // set here.
         builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>();
         builder.Services.AddHttpClient<IDashboardApiClient, DashboardApiClient>();
+        builder.Services.AddHttpClient<IMarketplaceApiClient, MarketplaceApiClient>();
 
         var app = builder.Build();
 
@@ -60,13 +64,21 @@ public class Program
         }
 
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-        app.UseHttpsRedirection();
+
+        // Skipped in production: Fly.io (and most PaaS hosts) terminate TLS at the edge and
+        // forward plain HTTP internally, so redirecting-to-HTTPS inside the container would
+        // just loop.
+        if (!app.Environment.IsProduction())
+        {
+            app.UseHttpsRedirection();
+        }
 
         app.UseAntiforgery();
 
         app.MapStaticAssets();
         app.MapAuthProxyEndpoints();
         app.MapDashboardProxyEndpoints();
+        app.MapMarketplaceProxyEndpoints();
         app.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode()
             .AddInteractiveWebAssemblyRenderMode()

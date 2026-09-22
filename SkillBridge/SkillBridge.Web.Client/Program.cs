@@ -32,6 +32,12 @@ class Program
             client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
         });
 
+        // Same reasoning again, via the /api/courses and /api/jobs proxies (ApiProxyEndpoints.MapMarketplaceProxyEndpoints).
+        builder.Services.AddHttpClient<IMarketplaceApiClient, MarketplaceApiClient>(client =>
+        {
+            client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
+        });
+
         await builder.Build().RunAsync();
     }
 }

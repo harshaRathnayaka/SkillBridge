@@ -1,3 +1,5 @@
+@inject IMarketplaceApiClient MarketplaceApiClient
+
 <div class="stat-tile-grid">
     <StatTile Label="Open roles" Value="@Data.OpenRoles.ToString()" SubLabel="@($"{Data.PostedThisWeek} posted this week")" />
     <StatTile Label="Applicants" Value="@Data.Applicants.ToString()" SubLabel="@($"{Data.NeedReview} need review")" />
@@ -7,6 +9,10 @@
 
 <div class="dashboard-columns">
     <div class="dashboard-main">
+        @if (candidateErrorMessage is not null)
+        {
+            <div class="alert alert-danger py-1 px-2 small mb-2">@candidateErrorMessage</div>
+        }
         @foreach (var candidate in Data.Candidates)
         {
             <div class="dashboard-card">
@@ -19,6 +25,13 @@
                 </div>
                 <div class="dashboard-card-foot">
                     <span class="text-muted small">@candidate.RateLabel · applied @candidate.AppliedLabel</span>
+                    @if (candidate.Stage != "Offer")
+                    {
+                        <button class="btn btn-sm btn-outline-primary" disabled="@(busyApplicationId == candidate.ApplicationId)"
+                                @onclick="() => AdvanceAsync(candidate.ApplicationId)">
+                            @(busyApplicationId == candidate.ApplicationId ? "Advancing…" : "Advance")
+                        </button>
+                    }
                 </div>
             </div>
         }
@@ -44,8 +57,47 @@
             }
         </div>
         <div class="dashboard-card">
-            <h3 class="dashboard-card-heading">Need more candidates?</h3>
-            <p class="text-muted small mb-0">Post a role and it goes live to job seekers instantly.</p>
+            @if (showNewPostingForm)
+            {
+                @if (postingErrorMessage is not null)
+                {
+                    <div class="alert alert-danger py-1 px-2 small mb-2">@postingErrorMessage</div>
+                }
+                <div class="mb-2">
+                    <label class="form-label small mb-1">Title</label>
+                    <input class="form-control form-control-sm" @bind="newTitle" placeholder="e.g. Senior Maths Tutor" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small mb-1">Location</label>
+                    <input class="form-control form-control-sm" @bind="newLocation" placeholder="e.g. Colombo, LK" />
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col">
+                        <label class="form-label small mb-1">Work mode</label>
+                        <input class="form-control form-control-sm" @bind="newWorkMode" placeholder="Remote / Hybrid" />
+                    </div>
+                    <div class="col">
+                        <label class="form-label small mb-1">Type</label>
+                        <input class="form-control form-control-sm" @bind="newEmploymentType" placeholder="Part-time" />
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small mb-1">Rate</label>
+                    <input class="form-control form-control-sm" @bind="newRateLabel" placeholder="e.g. LKR 3,500 / hr" />
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-primary" disabled="@creatingPosting" @onclick="CreatePostingAsync">
+                        @(creatingPosting ? "Posting…" : "Post job")
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => showNewPostingForm = false">Cancel</button>
+                </div>
+            }
+            else
+            {
+                <h3 class="dashboard-card-heading">Need more candidates?</h3>
+                <p class="text-muted small">Post a role and it goes live to job seekers instantly.</p>
+                <button class="btn btn-sm btn-primary" @onclick="() => showNewPostingForm = true">+ Post a job</button>
+            }
         </div>
     </div>
 </div>
@@ -53,4 +105,64 @@
 @code {
     [Parameter, EditorRequired]
     public EmployerDashboardInfo Data { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public string AccessToken { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public EventCallback OnChanged { get; set; }
+
+    private bool showNewPostingForm;
+    private bool creatingPosting;
+    private string newTitle = "";
+    private string newLocation = "";
+    private string newWorkMode = "";
+    private string newEmploymentType = "";
+    private string newRateLabel = "";
+    private string? postingErrorMessage;
+
+    private Guid? busyApplicationId;
+    private string? candidateErrorMessage;
+
+    private async Task CreatePostingAsync()
+    {
+        postingErrorMessage = null;
+        if (string.IsNullOrWhiteSpace(newTitle))
+        {
+            postingErrorMessage = "Title is required.";
+            return;
+        }
+
+        creatingPosting = true;
+        var result = await MarketplaceApiClient.CreateJobPostingAsync(
+            AccessToken, newTitle, newLocation, newWorkMode, newEmploymentType, newRateLabel);
+
+        creatingPosting = false;
+        if (!result.Succeeded)
+        {
+            postingErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't post the job. Please try again.";
+            return;
+        }
+
+        showNewPostingForm = false;
+        newTitle = newLocation = newWorkMode = newEmploymentType = newRateLabel = "";
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task AdvanceAsync(Guid applicationId)
+    {
+        candidateErrorMessage = null;
+        busyApplicationId = applicationId;
+
+        var result = await MarketplaceApiClient.AdvanceApplicationAsync(AccessToken, applicationId);
+
+        busyApplicationId = null;
+        if (!result.Succeeded)
+        {
+            candidateErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't advance the candidate. Please try again.";
+            return;
+        }
+
+        await OnChanged.InvokeAsync();
+    }
 }

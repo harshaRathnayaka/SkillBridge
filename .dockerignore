@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.git/
+**/node_modules/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.github/
+.fly/
+SkillBridge.E2E.Tests/
+SkillBridge.ApiService.Tests/
+SkillBridge.AppHost/
+SkillBridge/SkillBridge/

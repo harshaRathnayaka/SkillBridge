@@ -237,8 +237,7 @@ public static class AuthEndpoints
         ITokenService tokenService,
         IRefreshTokenService refreshTokenService,
         IEmailSender emailSender,
-        IConfiguration configuration,
-        ApplicationDbContext db)
+        IConfiguration configuration)
     {
         if (!RoleSeeder.RoleNames.Contains(request.Role, StringComparer.Ordinal))
         {
@@ -260,10 +259,6 @@ public static class AuthEndpoints
 
         await userManager.AddToRoleAsync(user, request.Role);
         var roles = await userManager.GetRolesAsync(user);
-
-        // Gives the new account starter dashboard content (see DashboardContentSeeder) so
-        // Home isn't empty right after signup.
-        await DashboardContentSeeder.SeedForNewUserAsync(db, user.Id, request.Role, request.DisplayName);
 
         // Account is created and usable immediately (unchanged behavior) — confirmation is
         // tracked for future features (e.g. a "verified" trust badge) but doesn't gate login.

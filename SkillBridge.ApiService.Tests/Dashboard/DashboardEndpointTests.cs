@@ -2,14 +2,25 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using SkillBridge.ApiService.Auth.Contracts;
+using SkillBridge.ApiService.Courses.Contracts;
 using SkillBridge.ApiService.Dashboard.Contracts;
+using SkillBridge.ApiService.Jobs.Contracts;
 using SkillBridge.ApiService.Tests.TestSupport;
 
 namespace SkillBridge.ApiService.Tests.Dashboard;
 
+// There is no seeded demo data (see DashboardContentSeeder's removal) — every number on every
+// dashboard comes from real rows, so these tests build up exactly the state they assert on via
+// the real Courses/Jobs endpoints rather than relying on any starter fixture.
 public class DashboardEndpointTests
 {
     private const string Password = "P@ssw0rd123!";
+
+    private static readonly CreateCourseRequest ValidCourse = new(
+        "React Fundamentals", "Live", 50, "USD", " / hr", DateTimeOffset.UtcNow.AddDays(1));
+
+    private static readonly CreateJobPostingRequest ValidPosting = new(
+        "Senior Tutor", "Colombo, LK", "Hybrid", "Part-time", "LKR 3,000 / hr");
 
     private static async Task<AuthResponse> RegisterAsync(HttpClient client, string email, string role, string displayName = "Test User")
     {
@@ -19,16 +30,23 @@ public class DashboardEndpointTests
         return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }
 
-    private static async Task<HttpResponseMessage> GetDashboardAsync(HttpClient client, string? accessToken)
+    private static HttpRequestMessage BuildRequest(HttpMethod method, string url, string? accessToken, object? body = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/dashboard");
+        var request = new HttpRequestMessage(method, url);
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
         if (accessToken is not null)
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         }
 
-        return await client.SendAsync(request);
+        return request;
     }
+
+    private static async Task<HttpResponseMessage> GetDashboardAsync(HttpClient client, string? accessToken) =>
+        await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/dashboard", accessToken));
 
     [Fact]
     public async Task Dashboard_without_a_bearer_token_is_rejected()
@@ -42,94 +60,116 @@ public class DashboardEndpointTests
     }
 
     [Fact]
-    public async Task Student_dashboard_reflects_their_own_seeded_enrollments()
+    public async Task Student_dashboard_starts_at_zero_and_only_reflects_their_own_real_enrollment()
     {
         using var factory = new ApiServiceTestFactory();
         using var client = factory.CreateClient();
-        var auth = await RegisterAsync(client, "dash-student@example.com", "Student");
+        var studentAuth = await RegisterAsync(client, "dash-student@example.com", "Student");
 
-        var response = await GetDashboardAsync(client, auth.AccessToken);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var beforeAnyCourseExists = await GetDashboardAsync(client, studentAuth.AccessToken);
+        var beforeBody = await beforeAnyCourseExists.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal("Student", beforeBody!.Role);
+        Assert.Null(beforeBody.Tutor);
+        Assert.Equal(0, beforeBody.Student!.ActiveCourses);
+        Assert.Empty(beforeBody.Student.Courses);
+        Assert.Empty(beforeBody.Student.SuggestedTeachers);
 
-        var body = await response.Content.ReadFromJsonAsync<DashboardResponse>();
-        Assert.NotNull(body);
-        Assert.Equal("Student", body!.Role);
-        Assert.NotNull(body.Student);
-        Assert.Null(body.Tutor);
-        Assert.Null(body.Employer);
-        Assert.Null(body.JobSeeker);
+        var tutorAuth = await RegisterAsync(client, "dash-student-tutor@example.com", "Teacher", "Course Owner");
+        var createCourse = await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", tutorAuth.AccessToken, ValidCourse));
+        var course = await createCourse.Content.ReadFromJsonAsync<CreatedResponse>();
 
-        Assert.Equal(2, body.Student!.ActiveCourses);
-        Assert.Equal(2, body.Student.Courses.Count);
-        Assert.True(body.Student.LessonsRemainingTotal > 0);
-        Assert.InRange(body.Student.AvgProgressPercent, 0, 100);
-        Assert.NotEmpty(body.Student.SuggestedTeachers);
+        var afterCourseExists = await GetDashboardAsync(client, studentAuth.AccessToken);
+        var afterCourseBody = await afterCourseExists.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Single(afterCourseBody!.Student!.SuggestedTeachers);
+        Assert.Equal(0, afterCourseBody.Student.ActiveCourses);
+
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/courses/{course!.Id}/enroll", studentAuth.AccessToken));
+
+        var afterEnrolling = await GetDashboardAsync(client, studentAuth.AccessToken);
+        var afterEnrollingBody = await afterEnrolling.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal(1, afterEnrollingBody!.Student!.ActiveCourses);
+        Assert.Equal("React Fundamentals", afterEnrollingBody.Student.Courses[0].Title);
     }
 
     [Fact]
-    public async Task Tutor_dashboard_reflects_their_own_seeded_courses_and_materials()
+    public async Task Tutor_dashboard_starts_at_zero_and_reflects_their_own_real_courses_and_materials()
     {
         using var factory = new ApiServiceTestFactory();
         using var client = factory.CreateClient();
-        var auth = await RegisterAsync(client, "dash-tutor@example.com", "Teacher");
+        var tutorAuth = await RegisterAsync(client, "dash-tutor@example.com", "Teacher");
 
-        var response = await GetDashboardAsync(client, auth.AccessToken);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var before = await GetDashboardAsync(client, tutorAuth.AccessToken);
+        var beforeBody = await before.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal("Teacher", beforeBody!.Role);
+        Assert.Empty(beforeBody.Tutor!.Courses);
+        Assert.Equal(0, beforeBody.Tutor.LiveClasses);
+        Assert.Equal("—", beforeBody.Tutor.EarningsLabel);
+        Assert.Null(beforeBody.Tutor.RatingAverage);
 
-        var body = await response.Content.ReadFromJsonAsync<DashboardResponse>();
-        Assert.NotNull(body?.Tutor);
-        Assert.Null(body!.Student);
+        var createCourse = await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", tutorAuth.AccessToken, ValidCourse));
+        var course = await createCourse.Content.ReadFromJsonAsync<CreatedResponse>();
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/courses/{course!.Id}/materials", tutorAuth.AccessToken, new CreateMaterialRequest("Lesson slides")));
 
-        Assert.Equal(2, body.Tutor!.Courses.Count);
-        Assert.Equal(1, body.Tutor.LiveClasses);
-        Assert.True(body.Tutor.LearnersEnrolledTotal > 0);
-        Assert.Equal(1, body.Tutor.PublishedMaterials);
-        Assert.Equal(1, body.Tutor.DraftMaterials);
-        Assert.NotEqual("—", body.Tutor.EarningsLabel);
-        Assert.NotNull(body.Tutor.RatingAverage);
+        var after = await GetDashboardAsync(client, tutorAuth.AccessToken);
+        var afterBody = await after.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Single(afterBody!.Tutor!.Courses);
+        Assert.Equal(1, afterBody.Tutor.LiveClasses);
+        Assert.Equal(1, afterBody.Tutor.DraftMaterials);
+        Assert.Equal(0, afterBody.Tutor.PublishedMaterials);
     }
 
     [Fact]
-    public async Task Employer_dashboard_reflects_their_own_seeded_postings_and_candidates()
+    public async Task Employer_dashboard_starts_at_zero_and_reflects_their_own_real_postings_and_candidates()
     {
         using var factory = new ApiServiceTestFactory();
         using var client = factory.CreateClient();
-        var auth = await RegisterAsync(client, "dash-employer@example.com", "JobGiver");
+        var employerAuth = await RegisterAsync(client, "dash-employer@example.com", "JobGiver");
 
-        var response = await GetDashboardAsync(client, auth.AccessToken);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var before = await GetDashboardAsync(client, employerAuth.AccessToken);
+        var beforeBody = await before.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal(0, beforeBody!.Employer!.OpenRoles);
+        Assert.Empty(beforeBody.Employer.Candidates);
 
-        var body = await response.Content.ReadFromJsonAsync<DashboardResponse>();
-        Assert.NotNull(body?.Employer);
+        var createPosting = await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/jobs", employerAuth.AccessToken, ValidPosting));
+        var posting = await createPosting.Content.ReadFromJsonAsync<CreatedResponse>();
 
-        Assert.Equal(1, body!.Employer!.OpenRoles);
-        Assert.Equal(2, body.Employer.Applicants);
-        Assert.Equal(1, body.Employer.Interviews);
-        Assert.Equal(1, body.Employer.NeedReview);
-        Assert.NotEmpty(body.Employer.Candidates);
-        Assert.NotEmpty(body.Employer.UpcomingSessions);
+        var seekerAuth = await RegisterAsync(client, "dash-employer-seeker@example.com", "JobSeeker", "Applicant One");
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/jobs/{posting!.Id}/apply", seekerAuth.AccessToken));
+
+        var after = await GetDashboardAsync(client, employerAuth.AccessToken);
+        var afterBody = await after.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal(1, afterBody!.Employer!.OpenRoles);
+        Assert.Equal(1, afterBody.Employer.Applicants);
+        Assert.Equal("Applicant One", afterBody.Employer.Candidates[0].Name);
     }
 
     [Fact]
-    public async Task JobSeeker_dashboard_reflects_their_own_application_and_shared_job_catalog()
+    public async Task JobSeeker_dashboard_starts_at_zero_and_only_shows_real_postings_as_matches()
     {
         using var factory = new ApiServiceTestFactory();
         using var client = factory.CreateClient();
-        var auth = await RegisterAsync(client, "dash-jobseeker@example.com", "JobSeeker");
+        var seekerAuth = await RegisterAsync(client, "dash-jobseeker@example.com", "JobSeeker");
 
-        var response = await GetDashboardAsync(client, auth.AccessToken);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var before = await GetDashboardAsync(client, seekerAuth.AccessToken);
+        var beforeBody = await before.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal(0, beforeBody!.JobSeeker!.ApplicationsCount);
+        Assert.Empty(beforeBody.JobSeeker.Matches);
 
-        var body = await response.Content.ReadFromJsonAsync<DashboardResponse>();
-        Assert.NotNull(body?.JobSeeker);
+        var employerAuth = await RegisterAsync(client, "dash-jobseeker-employer@example.com", "JobGiver");
+        var createPosting = await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/jobs", employerAuth.AccessToken, ValidPosting));
+        var posting = await createPosting.Content.ReadFromJsonAsync<CreatedResponse>();
 
-        Assert.Equal(1, body!.JobSeeker!.ApplicationsCount);
-        Assert.Equal(1, body.JobSeeker.AtInterview);
-        Assert.NotEmpty(body.JobSeeker.MyApplications);
-        // The catalog has 3 system postings; one is already applied to, so up to 2 remain as
-        // "new matches" (plus any real postings from other employers, none exist in this test).
-        Assert.NotEmpty(body.JobSeeker.Matches);
-        Assert.DoesNotContain(body.JobSeeker.Matches, m => m.Title == body.JobSeeker.MyApplications[0].Title);
+        var afterPostingExists = await GetDashboardAsync(client, seekerAuth.AccessToken);
+        var afterPostingBody = await afterPostingExists.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Single(afterPostingBody!.JobSeeker!.Matches);
+
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/jobs/{posting!.Id}/apply", seekerAuth.AccessToken));
+
+        var afterApplying = await GetDashboardAsync(client, seekerAuth.AccessToken);
+        var afterApplyingBody = await afterApplying.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal(1, afterApplyingBody!.JobSeeker!.ApplicationsCount);
+        Assert.Empty(afterApplyingBody.JobSeeker.Matches);
+        Assert.Equal("Senior Tutor", afterApplyingBody.JobSeeker.MyApplications[0].Title);
     }
 
     [Fact]
@@ -138,12 +178,15 @@ public class DashboardEndpointTests
         using var factory = new ApiServiceTestFactory();
         using var client = factory.CreateClient();
         var authA = await RegisterAsync(client, "dash-tutor-a@example.com", "Teacher");
-        await RegisterAsync(client, "dash-tutor-b@example.com", "Teacher");
+        var authB = await RegisterAsync(client, "dash-tutor-b@example.com", "Teacher");
+
+        await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", authA.AccessToken, ValidCourse));
+        await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", authB.AccessToken, ValidCourse with { Title = "Other Tutor's Course" }));
 
         var response = await GetDashboardAsync(client, authA.AccessToken);
         var body = await response.Content.ReadFromJsonAsync<DashboardResponse>();
 
-        // Each tutor gets their own 2 seeded courses — if isolation broke, tutor A would see 4.
-        Assert.Equal(2, body!.Tutor!.Courses.Count);
+        Assert.Single(body!.Tutor!.Courses);
+        Assert.Equal("React Fundamentals", body.Tutor.Courses[0].Title);
     }
 }

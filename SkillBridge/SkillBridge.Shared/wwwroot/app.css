@@ -256,6 +256,18 @@ h1:focus {
     background: rgba(255, 255, 255, 0.14);
 }
 
+/* A nav item whose page doesn't exist yet (e.g. the prototype's "Find teachers"/"Course
+   studio") — visible for layout parity with the prototype, but visually inert rather than a
+   dead link. */
+.app-nav-link-soon {
+    color: #6b7794 !important;
+    cursor: default;
+}
+
+.app-nav-link-soon:hover {
+    background: none;
+}
+
 .app-role-pill {
     font-size: 0.8rem;
     color: #b7c4dc;

@@ -1,3 +1,5 @@
+@inject IMarketplaceApiClient MarketplaceApiClient
+
 <div class="stat-tile-grid">
     <StatTile Label="Active courses" Value="@Data.ActiveCourses.ToString()" SubLabel="@($"{Data.LessonsRemainingTotal} lessons remaining")" />
     <StatTile Label="Teachers" Value="@Data.DistinctTeachers.ToString()" SubLabel="@($"across {Data.DistinctTeachers} subjects")" />
@@ -42,11 +44,23 @@
         </div>
         <div class="dashboard-card">
             <h3 class="dashboard-card-heading">Suggested teachers</h3>
+            @if (errorMessage is not null)
+            {
+                <div class="alert alert-danger py-1 px-2 small mb-2">@errorMessage</div>
+            }
             @foreach (var teacher in Data.SuggestedTeachers)
             {
                 <div class="dashboard-list-item">
-                    <div>@teacher.Name</div>
-                    <div class="text-muted small">@teacher.Subject · @teacher.RateLabel</div>
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                        <div>
+                            <div>@teacher.Name</div>
+                            <div class="text-muted small">@teacher.Subject · @teacher.RateLabel</div>
+                        </div>
+                        <button class="btn btn-sm btn-primary" disabled="@(busyCourseId == teacher.CourseId)"
+                                @onclick="() => EnrollAsync(teacher.CourseId)">
+                            @(busyCourseId == teacher.CourseId ? "Enrolling…" : "Enroll")
+                        </button>
+                    </div>
                 </div>
             }
         </div>
@@ -56,4 +70,30 @@
 @code {
     [Parameter, EditorRequired]
     public StudentDashboardInfo Data { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public string AccessToken { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public EventCallback OnChanged { get; set; }
+
+    private Guid? busyCourseId;
+    private string? errorMessage;
+
+    private async Task EnrollAsync(Guid courseId)
+    {
+        busyCourseId = courseId;
+        errorMessage = null;
+
+        var result = await MarketplaceApiClient.EnrollAsync(AccessToken, courseId);
+        if (!result.Succeeded)
+        {
+            errorMessage = result.Errors.FirstOrDefault() ?? "Couldn't enroll. Please try again.";
+            busyCourseId = null;
+            return;
+        }
+
+        busyCourseId = null;
+        await OnChanged.InvokeAsync();
+    }
 }

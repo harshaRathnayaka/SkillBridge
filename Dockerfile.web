@@ -1,0 +1,26 @@
+# Builds and runs SkillBridge.Web (+ its WASM Web.Client head) standalone for deployment to a
+# real host like Fly.io. Build context is the repo root so the SkillBridge.ServiceDefaults and
+# SkillBridge.Shared project references resolve.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY SkillBridge/SkillBridge.Web/ SkillBridge/SkillBridge.Web/
+COPY SkillBridge/SkillBridge.Web.Client/ SkillBridge/SkillBridge.Web.Client/
+COPY SkillBridge/SkillBridge.Shared/ SkillBridge/SkillBridge.Shared/
+COPY SkillBridge.ServiceDefaults/ SkillBridge.ServiceDefaults/
+# A single publish (no separate restore step) — the Blazor "Auto" render mode's static web
+# asset stitching across Web/Web.Client/Shared didn't produce wwwroot/_framework/blazor.web.js
+# when restore and publish were split into separate layers (caught by testing the deployed
+# container directly: the file was present in a local `dotnet publish`, absent from this
+# multi-project publish path). Costs some Docker layer-cache efficiency; correctness first.
+RUN dotnet publish SkillBridge/SkillBridge.Web/SkillBridge.Web.csproj -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "SkillBridge.Web.dll"]

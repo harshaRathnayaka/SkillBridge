@@ -49,6 +49,18 @@ public static class MauiProgram
 #endif
         ;
 
+        builder.Services.AddHttpClient<IMarketplaceApiClient, MarketplaceApiClient>(client =>
+        {
+            client.BaseAddress = new Uri(ApiConfig.BaseUrl);
+        })
+#if DEBUG
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+        })
+#endif
+        ;
+
         builder.Services.AddMauiBlazorWebView();
 
 #if DEBUG

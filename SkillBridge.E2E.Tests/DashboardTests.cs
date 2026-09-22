@@ -12,7 +12,9 @@ public class DashboardTests : SkillBridgeE2ETestBase
     {
         await RegisterAsync(Page, "Dash Student", UniqueEmail("e2e-dash-student"), "P@ssw0rd123!", "Student");
 
-        await Expect(Page.GetByText("Active courses")).ToBeVisibleAsync();
+        // Exact: with no seeded courses, "No active courses yet." also substring-matches
+        // "Active courses" — scope to the stat tile's own label.
+        await Expect(Page.GetByText("Active courses", new() { Exact = true })).ToBeVisibleAsync();
     }
 
     [Test]
