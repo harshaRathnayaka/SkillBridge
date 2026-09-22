@@ -5,39 +5,47 @@
 {
     <p class="text-muted small">Loading your dashboard…</p>
 }
-else if (dashboard is null)
+else if (dashboard is null || accessToken is null)
 {
     <p class="text-muted small">Couldn't load your dashboard right now.</p>
 }
 else if (dashboard.Student is not null)
 {
-    <StudentDashboard Data="dashboard.Student" />
+    <StudentDashboard Data="dashboard.Student" AccessToken="@accessToken" OnChanged="ReloadAsync" />
 }
 else if (dashboard.Tutor is not null)
 {
-    <TutorDashboard Data="dashboard.Tutor" />
+    <TutorDashboard Data="dashboard.Tutor" AccessToken="@accessToken" OnChanged="ReloadAsync" />
 }
 else if (dashboard.Employer is not null)
 {
-    <EmployerDashboard Data="dashboard.Employer" />
+    <EmployerDashboard Data="dashboard.Employer" AccessToken="@accessToken" OnChanged="ReloadAsync" />
 }
 else if (dashboard.JobSeeker is not null)
 {
-    <JobSeekerDashboard Data="dashboard.JobSeeker" />
+    <JobSeekerDashboard Data="dashboard.JobSeeker" AccessToken="@accessToken" OnChanged="ReloadAsync" />
 }
 
 @code {
     private DashboardInfo? dashboard;
+    private string? accessToken;
     private bool loading = true;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    // Actions don't patch dashboard state locally — a single action (e.g. enrolling) can move
+    // several stat tiles and lists at once, so a full reload from the source of truth is
+    // simpler and less error-prone than reproducing that logic client-side.
+    private async Task ReloadAsync()
     {
         var tokens = await TokenStore.GetTokensAsync();
-        if (tokens is not null)
+        accessToken = tokens?.AccessToken;
+        if (accessToken is not null)
         {
-            dashboard = await DashboardApiClient.GetDashboardAsync(tokens.AccessToken);
+            dashboard = await DashboardApiClient.GetDashboardAsync(accessToken);
         }
 
         loading = false;
+        StateHasChanged();
     }
 }

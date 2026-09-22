@@ -42,6 +42,30 @@ public static class ApiProxyEndpoints
         return app;
     }
 
+    // Same reasoning again, for the write-side actions behind each role's dashboard.
+    public static IEndpointRouteBuilder MapMarketplaceProxyEndpoints(this IEndpointRouteBuilder app)
+    {
+        var courses = app.MapGroup("/api/courses").AllowAnonymous();
+        courses.MapPost("/", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Post, "/api/courses"));
+        courses.MapPost("/{courseId}/enroll", (HttpContext http, IHttpClientFactory f, string courseId) =>
+            ForwardAsync(http, f, HttpMethod.Post, $"/api/courses/{courseId}/enroll"));
+        courses.MapPost("/{courseId}/materials", (HttpContext http, IHttpClientFactory f, string courseId) =>
+            ForwardAsync(http, f, HttpMethod.Post, $"/api/courses/{courseId}/materials"));
+        courses.MapPost("/materials/{materialId}/publish", (HttpContext http, IHttpClientFactory f, string materialId) =>
+            ForwardAsync(http, f, HttpMethod.Post, $"/api/courses/materials/{materialId}/publish"));
+
+        var jobs = app.MapGroup("/api/jobs").AllowAnonymous();
+        jobs.MapPost("/", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Post, "/api/jobs"));
+        jobs.MapPost("/{jobPostingId}/apply", (HttpContext http, IHttpClientFactory f, string jobPostingId) =>
+            ForwardAsync(http, f, HttpMethod.Post, $"/api/jobs/{jobPostingId}/apply"));
+        jobs.MapPost("/applications/{applicationId}/advance", (HttpContext http, IHttpClientFactory f, string applicationId) =>
+            ForwardAsync(http, f, HttpMethod.Post, $"/api/jobs/applications/{applicationId}/advance"));
+
+        return app;
+    }
+
     private static async Task ForwardAsync(HttpContext http, IHttpClientFactory httpClientFactory, HttpMethod method, string upstreamPath)
     {
         var client = httpClientFactory.CreateClient("ApiService");

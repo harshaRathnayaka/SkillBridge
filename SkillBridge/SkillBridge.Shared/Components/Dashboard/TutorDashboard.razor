@@ -1,3 +1,5 @@
+@inject IMarketplaceApiClient MarketplaceApiClient
+
 <div class="stat-tile-grid">
     <StatTile Label="Live classes" Value="@Data.LiveClasses.ToString()" SubLabel="@($"{Data.LearnersEnrolledTotal} learners enrolled")" />
     <StatTile Label="Published materials" Value="@Data.PublishedMaterials.ToString()" SubLabel="@($"{Data.DraftMaterials} drafts waiting")" />
@@ -7,6 +9,48 @@
 
 <div class="dashboard-columns">
     <div class="dashboard-main">
+        <div class="dashboard-card">
+            @if (showNewCourseForm)
+            {
+                @if (courseErrorMessage is not null)
+                {
+                    <div class="alert alert-danger py-1 px-2 small mb-2">@courseErrorMessage</div>
+                }
+                <div class="mb-2">
+                    <label class="form-label small mb-1">Title</label>
+                    <input class="form-control form-control-sm" @bind="newCourseTitle" placeholder="e.g. Algebra Fundamentals" />
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col">
+                        <label class="form-label small mb-1">Mode</label>
+                        <select class="form-select form-select-sm" @bind="newCourseMode">
+                            <option value="Live">Live</option>
+                            <option value="SelfPaced">Self-paced</option>
+                            <option value="DraftSlots">Draft slots open</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label class="form-label small mb-1">Price</label>
+                        <input type="number" class="form-control form-control-sm" @bind="newCoursePrice" />
+                    </div>
+                    <div class="col">
+                        <label class="form-label small mb-1">Currency</label>
+                        <input class="form-control form-control-sm" @bind="newCourseCurrency" placeholder="USD" />
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-primary" disabled="@creatingCourse" @onclick="CreateCourseAsync">
+                        @(creatingCourse ? "Creating…" : "Create course")
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => showNewCourseForm = false">Cancel</button>
+                </div>
+            }
+            else
+            {
+                <button class="btn btn-sm btn-primary" @onclick="() => showNewCourseForm = true">+ New course</button>
+            }
+        </div>
+
         @foreach (var course in Data.Courses)
         {
             <div class="dashboard-card">
@@ -42,6 +86,10 @@
         </div>
         <div class="dashboard-card">
             <h3 class="dashboard-card-heading">Recent materials</h3>
+            @if (materialErrorMessage is not null)
+            {
+                <div class="alert alert-danger py-1 px-2 small mb-2">@materialErrorMessage</div>
+            }
             @foreach (var material in Data.RecentMaterials)
             {
                 <div class="dashboard-list-item">
@@ -50,9 +98,45 @@
                             <div>@material.Title</div>
                             <div class="text-muted small">@material.CourseTitle</div>
                         </div>
-                        <StatusPill Text="@material.Status" />
+                        @if (material.Status == "Draft")
+                        {
+                            <button class="btn btn-sm btn-outline-primary" disabled="@(busyMaterialId == material.Id)"
+                                    @onclick="() => PublishMaterialAsync(material.Id)">
+                                @(busyMaterialId == material.Id ? "Publishing…" : "Publish")
+                            </button>
+                        }
+                        else
+                        {
+                            <StatusPill Text="@material.Status" />
+                        }
                     </div>
                 </div>
+            }
+
+            @if (Data.Courses.Count > 0)
+            {
+                @if (showNewMaterialForm)
+                {
+                    <div class="mt-2">
+                        <select class="form-select form-select-sm mb-2" @bind="newMaterialCourseId">
+                            @foreach (var course in Data.Courses)
+                            {
+                                <option value="@course.Id">@course.Title</option>
+                            }
+                        </select>
+                        <input class="form-control form-control-sm mb-2" @bind="newMaterialTitle" placeholder="Material title" />
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-primary" disabled="@creatingMaterial" @onclick="CreateMaterialAsync">
+                                @(creatingMaterial ? "Adding…" : "Add material")
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => showNewMaterialForm = false">Cancel</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-outline-primary mt-2" @onclick="StartNewMaterial">+ Add material</button>
+                }
             }
         </div>
     </div>
@@ -61,4 +145,99 @@
 @code {
     [Parameter, EditorRequired]
     public TutorDashboardInfo Data { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public string AccessToken { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public EventCallback OnChanged { get; set; }
+
+    private bool showNewCourseForm;
+    private bool creatingCourse;
+    private string newCourseTitle = "";
+    private string newCourseMode = "Live";
+    private decimal newCoursePrice;
+    private string newCourseCurrency = "USD";
+    private string? courseErrorMessage;
+
+    private bool showNewMaterialForm;
+    private bool creatingMaterial;
+    private Guid newMaterialCourseId;
+    private string newMaterialTitle = "";
+    private string? materialErrorMessage;
+
+    private Guid? busyMaterialId;
+
+    private void StartNewMaterial()
+    {
+        newMaterialCourseId = Data.Courses[0].Id;
+        showNewMaterialForm = true;
+    }
+
+    private async Task CreateCourseAsync()
+    {
+        courseErrorMessage = null;
+        if (string.IsNullOrWhiteSpace(newCourseTitle))
+        {
+            courseErrorMessage = "Title is required.";
+            return;
+        }
+
+        creatingCourse = true;
+        var result = await MarketplaceApiClient.CreateCourseAsync(
+            AccessToken, newCourseTitle, newCourseMode, newCoursePrice, newCourseCurrency, null, null);
+
+        creatingCourse = false;
+        if (!result.Succeeded)
+        {
+            courseErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't create the course. Please try again.";
+            return;
+        }
+
+        showNewCourseForm = false;
+        newCourseTitle = "";
+        newCoursePrice = 0;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task CreateMaterialAsync()
+    {
+        materialErrorMessage = null;
+        if (string.IsNullOrWhiteSpace(newMaterialTitle))
+        {
+            materialErrorMessage = "Title is required.";
+            return;
+        }
+
+        creatingMaterial = true;
+        var result = await MarketplaceApiClient.CreateMaterialAsync(AccessToken, newMaterialCourseId, newMaterialTitle);
+
+        creatingMaterial = false;
+        if (!result.Succeeded)
+        {
+            materialErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't add the material. Please try again.";
+            return;
+        }
+
+        showNewMaterialForm = false;
+        newMaterialTitle = "";
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task PublishMaterialAsync(Guid materialId)
+    {
+        materialErrorMessage = null;
+        busyMaterialId = materialId;
+
+        var result = await MarketplaceApiClient.PublishMaterialAsync(AccessToken, materialId);
+
+        busyMaterialId = null;
+        if (!result.Succeeded)
+        {
+            materialErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't publish. Please try again.";
+            return;
+        }
+
+        await OnChanged.InvokeAsync();
+    }
 }

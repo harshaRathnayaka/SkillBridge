@@ -1,3 +1,5 @@
+@inject IMarketplaceApiClient MarketplaceApiClient
+
 <div class="stat-tile-grid">
     <StatTile Label="New matches" Value="@Data.NewMatchesThisWeek.ToString()" SubLabel="this week" />
     <StatTile Label="Applications" Value="@Data.ApplicationsCount.ToString()" SubLabel="@($"{Data.AtInterview} at interview")" />
@@ -8,6 +10,10 @@
 <div class="dashboard-columns">
     <div class="dashboard-main">
         <h3 class="dashboard-card-heading">Newest roles for you</h3>
+        @if (errorMessage is not null)
+        {
+            <div class="alert alert-danger py-1 px-2 small mb-2">@errorMessage</div>
+        }
         @foreach (var match in Data.Matches)
         {
             <div class="dashboard-card">
@@ -20,6 +26,10 @@
                 </div>
                 <div class="dashboard-card-foot">
                     <span class="text-muted small">@match.EmploymentType · @match.RateLabel</span>
+                    <button class="btn btn-sm btn-primary" disabled="@(busyJobPostingId == match.JobPostingId)"
+                            @onclick="() => ApplyAsync(match.JobPostingId)">
+                        @(busyJobPostingId == match.JobPostingId ? "Applying…" : "Apply")
+                    </button>
                 </div>
             </div>
         }
@@ -54,4 +64,30 @@
 @code {
     [Parameter, EditorRequired]
     public JobSeekerDashboardInfo Data { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public string AccessToken { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public EventCallback OnChanged { get; set; }
+
+    private Guid? busyJobPostingId;
+    private string? errorMessage;
+
+    private async Task ApplyAsync(Guid jobPostingId)
+    {
+        busyJobPostingId = jobPostingId;
+        errorMessage = null;
+
+        var result = await MarketplaceApiClient.ApplyAsync(AccessToken, jobPostingId);
+        if (!result.Succeeded)
+        {
+            errorMessage = result.Errors.FirstOrDefault() ?? "Couldn't apply. Please try again.";
+            busyJobPostingId = null;
+            return;
+        }
+
+        busyJobPostingId = null;
+        await OnChanged.InvokeAsync();
+    }
 }

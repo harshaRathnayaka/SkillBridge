@@ -1,0 +1,23 @@
+# Builds and runs SkillBridge.ApiService standalone (no Aspire AppHost) for deployment to a
+# real host like Fly.io. Build context is the repo root so the SkillBridge.ServiceDefaults
+# project reference resolves.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY SkillBridge.ApiService/SkillBridge.ApiService.csproj SkillBridge.ApiService/
+COPY SkillBridge.ServiceDefaults/SkillBridge.ServiceDefaults.csproj SkillBridge.ServiceDefaults/
+RUN dotnet restore SkillBridge.ApiService/SkillBridge.ApiService.csproj
+
+COPY SkillBridge.ApiService/ SkillBridge.ApiService/
+COPY SkillBridge.ServiceDefaults/ SkillBridge.ServiceDefaults/
+RUN dotnet publish SkillBridge.ApiService/SkillBridge.ApiService.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "SkillBridge.ApiService.dll"]

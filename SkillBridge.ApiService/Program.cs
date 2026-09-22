@@ -1,16 +1,19 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SkillBridge.ApiService.Auth;
 using SkillBridge.ApiService.Auth.Contracts;
+using SkillBridge.ApiService.Courses;
 using SkillBridge.ApiService.Dashboard;
 using SkillBridge.ApiService.Data;
 using SkillBridge.ApiService.Data.Seed;
 using SkillBridge.ApiService.Email;
+using SkillBridge.ApiService.Jobs;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -20,7 +23,15 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("SkillBridgeDb")));
 
-builder.Services.AddDataProtection();
+var dataProtection = builder.Services.AddDataProtection();
+if (builder.Environment.IsProduction())
+{
+    // Keeps password-reset/email-confirmation tokens valid across container restarts —
+    // without this, ASP.NET Core's default ephemeral key ring is regenerated on every
+    // redeploy and every outstanding token silently stops validating. Written to the same
+    // persistent volume the SQLite file lives on (see Dockerfile/fly.toml).
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo("/data/keys"));
+}
 
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
@@ -101,6 +112,8 @@ app.UseRateLimiter();
 
 app.MapAuthEndpoints();
 app.MapDashboardEndpoints();
+app.MapCourseEndpoints();
+app.MapJobEndpoints();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -114,7 +127,12 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// Skipped in production: Fly.io (and most PaaS hosts) terminate TLS at the edge and forward
+// plain HTTP internally, so redirecting-to-HTTPS inside the container would just loop.
+if (!app.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
 
 app.Run();
 
