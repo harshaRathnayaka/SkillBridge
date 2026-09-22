@@ -93,7 +93,7 @@ public class MarketplaceActionTests : SkillBridgeE2ETestBase
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Apply", Exact = true }).First.ClickAsync();
 
-        await Expect(Page.GetByText("My applications")).ToBeVisibleAsync();
+        await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "My applications" })).ToBeVisibleAsync();
         await Expect(Page.Locator(".dashboard-side").GetByText(matchTitle)).ToBeVisibleAsync();
     }
 }

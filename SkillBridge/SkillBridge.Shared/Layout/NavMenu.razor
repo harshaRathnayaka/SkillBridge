@@ -14,9 +14,26 @@
             <AuthorizeView>
                 <Authorized Context="authContext">
                     <nav class="app-menu-links">
-                        <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
-                        <NavLink class="app-nav-link" href="counter">Counter</NavLink>
-                        <NavLink class="app-nav-link" href="weather">Weather</NavLink>
+                        @if (authContext.User.IsInRole("Student"))
+                        {
+                            <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">My learning</NavLink>
+                            <span class="app-nav-link app-nav-link-soon" title="Coming soon">Find teachers</span>
+                        }
+                        else if (authContext.User.IsInRole("Teacher"))
+                        {
+                            <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Teaching home</NavLink>
+                            <span class="app-nav-link app-nav-link-soon" title="Coming soon">Course studio</span>
+                        }
+                        else if (authContext.User.IsInRole("JobGiver"))
+                        {
+                            <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Hiring home</NavLink>
+                            <span class="app-nav-link app-nav-link-soon" title="Coming soon">Post &amp; pipeline</span>
+                        }
+                        else if (authContext.User.IsInRole("JobSeeker"))
+                        {
+                            <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">My applications</NavLink>
+                            <span class="app-nav-link app-nav-link-soon" title="Coming soon">Find work</span>
+                        }
                         <NavLink class="app-nav-link" href="change-password">Change password</NavLink>
                     </nav>
                     <div class="app-menu-actions">
