@@ -217,7 +217,7 @@ jobs:
           java-version: '21'
 
       - name: Install MAUI Android workload
-        run: dotnet workload install android
+        run: dotnet workload install maui-android
 
       # AndroidKeyStore=false: self-signed with an auto-generated debug key, matching what was
       # already handed to real testers manually — good enough for sideloading, not a Play
