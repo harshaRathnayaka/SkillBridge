@@ -169,4 +169,84 @@ public class CourseEndpointsTests
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Browsing_the_course_catalog_without_auth_is_rejected()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/courses", null));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_course_catalog_lists_every_course_and_marks_the_callers_own_enrollment()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var tutor1Auth = await RegisterAsync(client, "catalog-tutor-1@example.com", "Teacher", "Catalog Tutor One");
+        var tutor2Auth = await RegisterAsync(client, "catalog-tutor-2@example.com", "Teacher", "Catalog Tutor Two");
+        var studentAuth = await RegisterAsync(client, "catalog-student@example.com", "Student");
+
+        var course1 = await (await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", tutor1Auth.AccessToken, ValidCourse)))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+        var course2Request = ValidCourse with { Title = "Another Course" };
+        var course2 = await (await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", tutor2Auth.AccessToken, course2Request)))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/courses/{course1!.Id}/enroll", studentAuth.AccessToken));
+
+        var response = await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/courses", studentAuth.AccessToken));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var catalog = await response.Content.ReadFromJsonAsync<List<CourseCatalogItem>>();
+
+        Assert.Contains(catalog!, c => c.Id == course1.Id && c.IsEnrolled);
+        Assert.Contains(catalog!, c => c.Id == course2!.Id && !c.IsEnrolled);
+    }
+
+    [Fact]
+    public async Task Unpublishing_a_material_moves_it_back_to_draft()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var tutorAuth = await RegisterAsync(client, "unpublish-tutor@example.com", "Teacher", "Unpublish Tutor");
+
+        var course = await (await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", tutorAuth.AccessToken, ValidCourse)))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+        var material = await (await client.SendAsync(BuildRequest(
+                HttpMethod.Post, $"/api/courses/{course!.Id}/materials", tutorAuth.AccessToken, new CreateMaterialRequest("Lesson slides"))))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/courses/materials/{material!.Id}/publish", tutorAuth.AccessToken));
+
+        var unpublish = await client.SendAsync(
+            BuildRequest(HttpMethod.Post, $"/api/courses/materials/{material.Id}/unpublish", tutorAuth.AccessToken));
+        Assert.Equal(HttpStatusCode.NoContent, unpublish.StatusCode);
+
+        var dashboard = await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/dashboard", tutorAuth.AccessToken));
+        var dashboardBody = await dashboard.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Contains(dashboardBody!.Tutor!.RecentMaterials, m => m.Id == material.Id && m.Status == "Draft");
+    }
+
+    [Fact]
+    public async Task A_tutor_cannot_unpublish_another_tutors_material()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var ownerAuth = await RegisterAsync(client, "unpublish-owner@example.com", "Teacher", "Unpublish Owner");
+        var otherAuth = await RegisterAsync(client, "unpublish-other@example.com", "Teacher", "Unpublish Other");
+
+        var course = await (await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", ownerAuth.AccessToken, ValidCourse)))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+        var material = await (await client.SendAsync(BuildRequest(
+                HttpMethod.Post, $"/api/courses/{course!.Id}/materials", ownerAuth.AccessToken, new CreateMaterialRequest("Lesson slides"))))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/courses/materials/{material!.Id}/publish", ownerAuth.AccessToken));
+
+        var response = await client.SendAsync(
+            BuildRequest(HttpMethod.Post, $"/api/courses/materials/{material.Id}/unpublish", otherAuth.AccessToken));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 }

@@ -1,0 +1,289 @@
+@page "/course-studio"
+@inject IDashboardApiClient DashboardApiClient
+@inject IMarketplaceApiClient MarketplaceApiClient
+@inject IAuthTokenStore TokenStore
+
+<PageTitle>Course studio</PageTitle>
+
+<RoleGuard Role="Teacher">
+    <div class="home-hero">
+        <h1>Course studio</h1>
+        <p class="text-muted">Manage your classes and publish materials for your learners.</p>
+    </div>
+
+    <div class="studio-tabs my-3">
+        <button class="studio-tab @(activeTab == StudioTab.Classes ? "active" : "")" @onclick="() => activeTab = StudioTab.Classes">My classes</button>
+        <button class="studio-tab @(activeTab == StudioTab.Materials ? "active" : "")" @onclick="() => activeTab = StudioTab.Materials">Course materials</button>
+    </div>
+
+    @if (loading)
+    {
+        <p class="text-muted small">Loading your studio…</p>
+    }
+    else if (tutor is null)
+    {
+        <p class="text-muted small">Couldn't load your studio right now.</p>
+    }
+    else if (activeTab == StudioTab.Classes)
+    {
+        <div class="dashboard-card mb-3">
+            @if (showNewCourseForm)
+            {
+                @if (courseErrorMessage is not null)
+                {
+                    <div class="alert alert-danger py-1 px-2 small mb-2">@courseErrorMessage</div>
+                }
+                <div class="mb-2">
+                    <label class="form-label small mb-1">Class name</label>
+                    <input class="form-control form-control-sm" @bind="newCourseTitle" placeholder="e.g. Algebra Fundamentals" />
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col">
+                        <label class="form-label small mb-1">Format</label>
+                        <select class="form-select form-select-sm" @bind="newCourseMode">
+                            <option value="Live">Live cohort</option>
+                            <option value="SelfPaced">Self-paced</option>
+                            <option value="DraftSlots">1:1 sessions</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label class="form-label small mb-1">Price</label>
+                        <input type="number" class="form-control form-control-sm" @bind="newCoursePrice" />
+                    </div>
+                    <div class="col">
+                        <label class="form-label small mb-1">Currency</label>
+                        <input class="form-control form-control-sm" @bind="newCourseCurrency" placeholder="USD" />
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-primary" disabled="@creatingCourse" @onclick="CreateCourseAsync">
+                        @(creatingCourse ? "Creating…" : "Create class")
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => showNewCourseForm = false">Cancel</button>
+                </div>
+            }
+            else
+            {
+                <button class="btn btn-sm btn-primary" @onclick="() => showNewCourseForm = true">+ Create a class</button>
+            }
+        </div>
+
+        @foreach (var course in tutor.Courses)
+        {
+            <div class="dashboard-card mb-3">
+                <div class="dashboard-card-head">
+                    <div>
+                        <div class="dashboard-card-title">@course.Title</div>
+                        <div class="text-muted small">@course.LearnersEnrolled learners · @(course.NextSessionAt is { } at ? $"next {at.ToLocalTime():ddd HH:mm}" : "next async")</div>
+                    </div>
+                    <StatusPill Text="@course.Mode" />
+                </div>
+                <div class="dashboard-card-foot">
+                    <span class="text-muted small">★ @course.RatingAverage.ToString("0.0")</span>
+                    <span class="text-muted small">@course.PriceLabel</span>
+                </div>
+            </div>
+        }
+        @if (tutor.Courses.Count == 0)
+        {
+            <p class="text-muted small">No classes yet — create your first one above.</p>
+        }
+    }
+    else
+    {
+        <div class="dashboard-card mb-3">
+            @if (materialErrorMessage is not null)
+            {
+                <div class="alert alert-danger py-1 px-2 small mb-2">@materialErrorMessage</div>
+            }
+            @if (tutor.Courses.Count == 0)
+            {
+                <p class="text-muted small mb-0">Create a class first, then you can publish materials to it.</p>
+            }
+            else if (showNewMaterialForm)
+            {
+                <select class="form-select form-select-sm mb-2" @bind="newMaterialCourseId">
+                    @foreach (var course in tutor.Courses)
+                    {
+                        <option value="@course.Id">@course.Title</option>
+                    }
+                </select>
+                <input class="form-control form-control-sm mb-2" @bind="newMaterialTitle" placeholder="Material title" />
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-primary" disabled="@creatingMaterial" @onclick="CreateMaterialAsync">
+                        @(creatingMaterial ? "Adding…" : "Publish new material")
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => showNewMaterialForm = false">Cancel</button>
+                </div>
+            }
+            else
+            {
+                <button class="btn btn-sm btn-primary" @onclick="StartNewMaterial">+ Publish new material</button>
+            }
+        </div>
+
+        @foreach (var group in tutor.RecentMaterials.GroupBy(m => m.CourseTitle))
+        {
+            <div class="dashboard-card mb-3">
+                <h3 class="dashboard-card-heading">@group.Key</h3>
+                @foreach (var material in group)
+                {
+                    <div class="dashboard-list-item">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div>@material.Title</div>
+                            @if (material.Status == "Draft")
+                            {
+                                <button class="btn btn-sm btn-outline-primary" disabled="@(busyMaterialId == material.Id)"
+                                        @onclick="() => PublishMaterialAsync(material.Id)">
+                                    @(busyMaterialId == material.Id ? "Publishing…" : "Publish")
+                                </button>
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center gap-2">
+                                    <StatusPill Text="@material.Status" />
+                                    <button class="btn btn-sm btn-outline-secondary" disabled="@(busyMaterialId == material.Id)"
+                                            @onclick="() => UnpublishMaterialAsync(material.Id)">
+                                        @(busyMaterialId == material.Id ? "Unpublishing…" : "Unpublish")
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        @if (tutor.RecentMaterials.Count == 0)
+        {
+            <p class="text-muted small">No materials yet.</p>
+        }
+    }
+</RoleGuard>
+
+@code {
+    private enum StudioTab { Classes, Materials }
+
+    private StudioTab activeTab = StudioTab.Classes;
+    private TutorDashboardInfo? tutor;
+    private bool loading = true;
+    private string? accessToken;
+
+    private bool showNewCourseForm;
+    private bool creatingCourse;
+    private string newCourseTitle = "";
+    private string newCourseMode = "Live";
+    private decimal newCoursePrice;
+    private string newCourseCurrency = "USD";
+    private string? courseErrorMessage;
+
+    private bool showNewMaterialForm;
+    private bool creatingMaterial;
+    private Guid newMaterialCourseId;
+    private string newMaterialTitle = "";
+    private string? materialErrorMessage;
+    private Guid? busyMaterialId;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        accessToken = await TokenStore.GetAccessTokenAsync();
+        if (accessToken is not null)
+        {
+            var dashboard = await DashboardApiClient.GetDashboardAsync(accessToken);
+            tutor = dashboard?.Tutor;
+        }
+
+        loading = false;
+    }
+
+    private void StartNewMaterial()
+    {
+        newMaterialCourseId = tutor!.Courses[0].Id;
+        showNewMaterialForm = true;
+    }
+
+    private async Task CreateCourseAsync()
+    {
+        courseErrorMessage = null;
+        if (string.IsNullOrWhiteSpace(newCourseTitle))
+        {
+            courseErrorMessage = "Class name is required.";
+            return;
+        }
+
+        creatingCourse = true;
+        var result = await MarketplaceApiClient.CreateCourseAsync(
+            accessToken!, newCourseTitle, newCourseMode, newCoursePrice, newCourseCurrency, null, null);
+
+        creatingCourse = false;
+        if (!result.Succeeded)
+        {
+            courseErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't create the class. Please try again.";
+            return;
+        }
+
+        showNewCourseForm = false;
+        newCourseTitle = "";
+        newCoursePrice = 0;
+        await LoadAsync();
+    }
+
+    private async Task CreateMaterialAsync()
+    {
+        materialErrorMessage = null;
+        if (string.IsNullOrWhiteSpace(newMaterialTitle))
+        {
+            materialErrorMessage = "Title is required.";
+            return;
+        }
+
+        creatingMaterial = true;
+        var result = await MarketplaceApiClient.CreateMaterialAsync(accessToken!, newMaterialCourseId, newMaterialTitle);
+
+        creatingMaterial = false;
+        if (!result.Succeeded)
+        {
+            materialErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't add the material. Please try again.";
+            return;
+        }
+
+        showNewMaterialForm = false;
+        newMaterialTitle = "";
+        await LoadAsync();
+    }
+
+    private async Task PublishMaterialAsync(Guid materialId)
+    {
+        materialErrorMessage = null;
+        busyMaterialId = materialId;
+
+        var result = await MarketplaceApiClient.PublishMaterialAsync(accessToken!, materialId);
+
+        busyMaterialId = null;
+        if (!result.Succeeded)
+        {
+            materialErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't publish. Please try again.";
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task UnpublishMaterialAsync(Guid materialId)
+    {
+        materialErrorMessage = null;
+        busyMaterialId = materialId;
+
+        var result = await MarketplaceApiClient.UnpublishMaterialAsync(accessToken!, materialId);
+
+        busyMaterialId = null;
+        if (!result.Succeeded)
+        {
+            materialErrorMessage = result.Errors.FirstOrDefault() ?? "Couldn't unpublish. Please try again.";
+            return;
+        }
+
+        await LoadAsync();
+    }
+}

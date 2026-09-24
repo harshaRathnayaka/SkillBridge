@@ -8,10 +8,8 @@ public enum ApplicationStage
     Offer,
 }
 
-// ApplicantName/Headline/RateLabel are denormalized (not joined to ApplicationUser): on an
-// employer's own dashboard the "candidates" are seeded demo profiles, not real accounts, so
-// there's nothing to join to. When a real job seeker applies to a catalog posting, their own
-// display name is copied in at creation time instead — one consistent row shape either way.
+// ApplicantName/Headline/RateLabel are denormalized copies taken at apply time, not a live
+// join to ApplicationUser — same plain-FK convention Course/JobPosting use.
 public class JobApplication
 {
     public Guid Id { get; set; }

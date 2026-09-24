@@ -167,4 +167,81 @@ public class JobEndpointsTests
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Browsing_the_job_catalog_without_auth_is_rejected()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/jobs", null));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_job_catalog_lists_every_posting_with_a_real_applicant_count_and_marks_the_callers_own_application()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var employerAuth = await RegisterAsync(client, "catalog-employer@example.com", "JobGiver", "Catalog Employer");
+        var seekerAuth = await RegisterAsync(client, "catalog-seeker@example.com", "JobSeeker");
+        var otherSeekerAuth = await RegisterAsync(client, "catalog-other-seeker@example.com", "JobSeeker");
+
+        var posting1 = await (await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/jobs", employerAuth.AccessToken, ValidPosting)))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+        var posting2Request = ValidPosting with { Title = "Another Role" };
+        var posting2 = await (await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/jobs", employerAuth.AccessToken, posting2Request)))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/jobs/{posting1!.Id}/apply", seekerAuth.AccessToken));
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/jobs/{posting1.Id}/apply", otherSeekerAuth.AccessToken));
+
+        var response = await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/jobs", seekerAuth.AccessToken));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var catalog = (await response.Content.ReadFromJsonAsync<List<JobCatalogItem>>())!;
+
+        var item1 = catalog.Single(j => j.Id == posting1.Id);
+        Assert.Equal(2, item1.ApplicantCount);
+        Assert.True(item1.IsApplied);
+
+        var item2 = catalog.Single(j => j.Id == posting2!.Id);
+        Assert.Equal(0, item2.ApplicantCount);
+        Assert.False(item2.IsApplied);
+    }
+
+    [Fact]
+    public async Task An_employers_own_listings_only_shows_their_own_postings_with_real_applicant_counts()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var employer1Auth = await RegisterAsync(client, "listings-employer-1@example.com", "JobGiver", "Listings Employer One");
+        var employer2Auth = await RegisterAsync(client, "listings-employer-2@example.com", "JobGiver", "Listings Employer Two");
+        var seekerAuth = await RegisterAsync(client, "listings-seeker@example.com", "JobSeeker");
+
+        var ownPosting = await (await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/jobs", employer1Auth.AccessToken, ValidPosting)))
+            .Content.ReadFromJsonAsync<CreatedResponse>();
+        await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/jobs", employer2Auth.AccessToken, ValidPosting));
+        await client.SendAsync(BuildRequest(HttpMethod.Post, $"/api/jobs/{ownPosting!.Id}/apply", seekerAuth.AccessToken));
+
+        var response = await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/jobs/mine", employer1Auth.AccessToken));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var listings = await response.Content.ReadFromJsonAsync<List<EmployerJobListingItem>>();
+
+        var listing = Assert.Single(listings!);
+        Assert.Equal(ownPosting.Id, listing.Id);
+        Assert.Equal(1, listing.ApplicantCount);
+    }
+
+    [Fact]
+    public async Task A_job_seeker_cannot_view_the_employer_only_listings_endpoint()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var seekerAuth = await RegisterAsync(client, "not-an-employer-listings@example.com", "JobSeeker");
+
+        var response = await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/jobs/mine", seekerAuth.AccessToken));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 }

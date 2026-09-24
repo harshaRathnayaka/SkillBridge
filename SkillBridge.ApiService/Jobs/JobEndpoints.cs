@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.EntityFrameworkCore;
 using SkillBridge.ApiService.Auth.Contracts;
+using SkillBridge.ApiService.Dashboard;
 using SkillBridge.ApiService.Data;
 using SkillBridge.ApiService.Jobs.Contracts;
 
@@ -12,6 +13,8 @@ public static class JobEndpoints
     {
         var group = app.MapGroup("/api/jobs").RequireAuthorization();
 
+        group.MapGet("/", GetJobCatalogAsync);
+        group.MapGet("/mine", GetMyJobPostingsAsync);
         group.MapPost("/", CreateJobPostingAsync);
         group.MapPost("/{jobPostingId:guid}/apply", ApplyAsync);
         group.MapPost("/applications/{applicationId:guid}/advance", AdvanceStageAsync);
@@ -132,4 +135,60 @@ public static class JobEndpoints
 
         return Results.NoContent();
     }
+
+    // Any authenticated role can browse the catalog (a page like "Find work" is JobSeeker-only
+    // at the UI level, but the read itself isn't sensitive) — IsApplied is only ever true for a
+    // JobSeeker, since only JobSeekers can apply.
+    private static async Task<IResult> GetJobCatalogAsync(HttpContext http, ApplicationDbContext db)
+    {
+        var (userId, role, _) = CallerInfo(http);
+
+        var postings = (await db.JobPostings.ToListAsync()).OrderByDescending(p => p.PostedAt).ToList();
+        var applicantCounts = ApplicantCountsFor(await db.JobApplications.ToListAsync());
+
+        var appliedPostingIds = role == "JobSeeker"
+            ? (await db.JobApplications.Where(a => a.ApplicantId == userId).Select(a => a.JobPostingId).ToListAsync()).ToHashSet()
+            : new HashSet<Guid>();
+
+        var catalog = postings
+            .Select(p => new JobCatalogItem(
+                p.Id, p.Title, p.CompanyDisplayName, p.Location, p.WorkMode, p.EmploymentType, p.RateLabel,
+                DashboardFormatting.FormatRelative(p.PostedAt), applicantCounts.GetValueOrDefault(p.Id), appliedPostingIds.Contains(p.Id)))
+            .ToList();
+
+        return Results.Ok(catalog);
+    }
+
+    private static async Task<IResult> GetMyJobPostingsAsync(HttpContext http, ApplicationDbContext db)
+    {
+        var (userId, role, _) = CallerInfo(http);
+        if (userId is null || role != "JobGiver")
+        {
+            return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var postings = (await db.JobPostings.Where(p => p.EmployerId == userId).ToListAsync())
+            .OrderByDescending(p => p.PostedAt)
+            .ToList();
+        var postingIds = postings.Select(p => p.Id).ToHashSet();
+        var applicantCounts = ApplicantCountsFor(
+            await db.JobApplications.Where(a => postingIds.Contains(a.JobPostingId)).ToListAsync());
+
+        var listings = postings
+            .Select(p => new EmployerJobListingItem(
+                p.Id, p.Title, p.Location, p.WorkMode, p.EmploymentType,
+                DashboardFormatting.FormatRelative(p.PostedAt), applicantCounts.GetValueOrDefault(p.Id)))
+            .ToList();
+
+        return Results.Ok(listings);
+    }
+
+    // Grouped in-memory rather than via a GroupBy translated to SQL — kept consistent with this
+    // codebase's established SQLite-safety pattern (see DashboardEndpoints' comments) of
+    // fetching first and aggregating client-side rather than risking a query shape the SQLite
+    // EF Core provider can't translate.
+    private static Dictionary<Guid, int> ApplicantCountsFor(List<JobApplication> applications) =>
+        applications
+            .GroupBy(a => a.JobPostingId)
+            .ToDictionary(g => g.Key, g => g.Count());
 }

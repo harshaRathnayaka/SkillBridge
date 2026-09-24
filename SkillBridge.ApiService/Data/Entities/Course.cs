@@ -7,10 +7,9 @@ public enum CourseMode
     DraftSlots,
 }
 
-// TeacherName is a denormalized copy of the owning teacher's display name at seed time, not a
-// live join to ApplicationUser — this table also holds a small fixed demo catalog "taught" by
-// non-account system teachers (see DashboardContentSeeder), so there isn't always a real user
-// row to join to.
+// TeacherName is a denormalized copy of the owning teacher's display name at course-creation
+// time, not a live join to ApplicationUser — same plain-FK convention RefreshToken.UserId
+// already uses, kept here for consistency rather than a real join.
 public class Course
 {
     public Guid Id { get; set; }

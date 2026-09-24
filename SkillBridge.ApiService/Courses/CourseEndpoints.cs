@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SkillBridge.ApiService.Auth.Contracts;
 using SkillBridge.ApiService.Courses.Contracts;
 using SkillBridge.ApiService.Data;
+using SkillBridge.ApiService.Dashboard;
 
 namespace SkillBridge.ApiService.Courses;
 
@@ -12,10 +13,12 @@ public static class CourseEndpoints
     {
         var group = app.MapGroup("/api/courses").RequireAuthorization();
 
+        group.MapGet("/", GetCourseCatalogAsync);
         group.MapPost("/", CreateCourseAsync);
         group.MapPost("/{courseId:guid}/enroll", EnrollAsync);
         group.MapPost("/{courseId:guid}/materials", CreateMaterialAsync);
         group.MapPost("/materials/{materialId:guid}/publish", PublishMaterialAsync);
+        group.MapPost("/materials/{materialId:guid}/unpublish", UnpublishMaterialAsync);
 
         return app;
     }
@@ -145,7 +148,13 @@ public static class CourseEndpoints
         return Results.Ok(new CreatedResponse(material.Id));
     }
 
-    private static async Task<IResult> PublishMaterialAsync(Guid materialId, HttpContext http, ApplicationDbContext db)
+    private static Task<IResult> PublishMaterialAsync(Guid materialId, HttpContext http, ApplicationDbContext db) =>
+        SetMaterialStatusAsync(materialId, MaterialStatus.Published, http, db);
+
+    private static Task<IResult> UnpublishMaterialAsync(Guid materialId, HttpContext http, ApplicationDbContext db) =>
+        SetMaterialStatusAsync(materialId, MaterialStatus.Draft, http, db);
+
+    private static async Task<IResult> SetMaterialStatusAsync(Guid materialId, MaterialStatus status, HttpContext http, ApplicationDbContext db)
     {
         var (userId, role, _) = CallerInfo(http);
         if (userId is null || role != "Teacher")
@@ -165,9 +174,32 @@ public static class CourseEndpoints
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }
 
-        material.Status = MaterialStatus.Published;
+        material.Status = status;
         await db.SaveChangesAsync();
 
         return Results.NoContent();
+    }
+
+    // Any authenticated role can browse the catalog (a page like "Find teachers" is Student-only
+    // at the UI level, but the read itself isn't sensitive) — IsEnrolled is only ever true for a
+    // Student, since only Students can enroll.
+    private static async Task<IResult> GetCourseCatalogAsync(HttpContext http, ApplicationDbContext db)
+    {
+        var (userId, role, _) = CallerInfo(http);
+
+        var enrolledCourseIds = role == "Student"
+            ? (await db.Enrollments.Where(e => e.StudentId == userId).Select(e => e.CourseId).ToListAsync()).ToHashSet()
+            : new HashSet<Guid>();
+
+        var courses = await db.Courses.OrderBy(c => c.Title).ToListAsync();
+
+        var catalog = courses
+            .Select(c => new CourseCatalogItem(
+                c.Id, c.TeacherName, c.Title, DashboardFormatting.FormatMode(c.Mode),
+                DashboardFormatting.FormatMoney(c.PriceAmount, c.Currency, c.PriceUnitLabel),
+                c.RatingAverage, c.NextSessionAt, enrolledCourseIds.Contains(c.Id)))
+            .ToList();
+
+        return Results.Ok(catalog);
     }
 }
