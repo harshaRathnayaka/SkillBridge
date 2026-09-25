@@ -256,18 +256,6 @@ h1:focus {
     background: rgba(255, 255, 255, 0.14);
 }
 
-/* A nav item whose page doesn't exist yet (e.g. the prototype's "Find teachers"/"Course
-   studio") — visible for layout parity with the prototype, but visually inert rather than a
-   dead link. */
-.app-nav-link-soon {
-    color: #6b7794 !important;
-    cursor: default;
-}
-
-.app-nav-link-soon:hover {
-    background: none;
-}
-
 .app-role-pill {
     font-size: 0.8rem;
     color: #b7c4dc;
@@ -453,5 +441,81 @@ h1:focus {
 .status-pill-neutral {
     background: #f1f4f9;
     color: #475069;
+}
+
+/* Marketplace browse pages (Find teachers/Course studio/Post & pipeline/Find work) */
+.catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+@media (max-width: 767.98px) {
+    .catalog-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.filter-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.filter-chip {
+    background: #fff;
+    border: 1px solid #e4e9f2;
+    color: #475069;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+}
+
+.filter-chip.active {
+    background: var(--sb-primary);
+    border-color: var(--sb-primary);
+    color: #fff;
+}
+
+.studio-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid #e4e9f2;
+}
+
+.studio-tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #6b7488;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.6rem 0.9rem;
+}
+
+.studio-tab.active {
+    color: var(--sb-primary);
+    border-bottom-color: var(--sb-primary);
+}
+
+.kanban-board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+@media (max-width: 991.98px) {
+    .kanban-board {
+        grid-template-columns: 1fr;
+    }
+}
+
+.kanban-column {
+    background: #fff;
+    border: 1px solid #e4e9f2;
+    border-radius: 10px;
+    padding: 1rem;
 }
 

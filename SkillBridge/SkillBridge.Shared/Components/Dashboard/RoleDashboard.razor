@@ -38,8 +38,7 @@ else if (dashboard.JobSeeker is not null)
     // simpler and less error-prone than reproducing that logic client-side.
     private async Task ReloadAsync()
     {
-        var tokens = await TokenStore.GetTokensAsync();
-        accessToken = tokens?.AccessToken;
+        accessToken = await TokenStore.GetAccessTokenAsync();
         if (accessToken is not null)
         {
             dashboard = await DashboardApiClient.GetDashboardAsync(accessToken);

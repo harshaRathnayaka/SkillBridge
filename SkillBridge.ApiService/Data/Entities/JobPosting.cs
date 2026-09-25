@@ -1,8 +1,7 @@
 namespace SkillBridge.ApiService.Data;
 
-// EmployerId is a real employer's own id for postings they create, or a small fixed
-// "system employer" id for the shared demo catalog job seekers see roles from (see
-// DashboardContentSeeder) — the same non-account-owner pattern Course uses for teachers.
+// EmployerId is the real employer's own id — same plain-FK convention Course.TeacherId uses,
+// kept for consistency rather than a real join.
 public class JobPosting
 {
     public Guid Id { get; set; }

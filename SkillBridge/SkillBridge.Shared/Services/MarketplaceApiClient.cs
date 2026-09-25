@@ -39,6 +39,9 @@ public class MarketplaceApiClient(HttpClient httpClient, NavigationManager? navi
     public Task<MarketplaceApiResult> PublishMaterialAsync(string accessToken, Guid materialId, CancellationToken cancellationToken = default) =>
         PostAsync<object>($"/api/courses/materials/{materialId}/publish", accessToken, null, cancellationToken);
 
+    public Task<MarketplaceApiResult> UnpublishMaterialAsync(string accessToken, Guid materialId, CancellationToken cancellationToken = default) =>
+        PostAsync<object>($"/api/courses/materials/{materialId}/unpublish", accessToken, null, cancellationToken);
+
     public Task<MarketplaceApiResult> CreateJobPostingAsync(
         string accessToken, string title, string location, string workMode, string employmentType,
         string rateLabel, CancellationToken cancellationToken = default) =>
@@ -49,6 +52,30 @@ public class MarketplaceApiClient(HttpClient httpClient, NavigationManager? navi
 
     public Task<MarketplaceApiResult> AdvanceApplicationAsync(string accessToken, Guid applicationId, CancellationToken cancellationToken = default) =>
         PostAsync<object>($"/api/jobs/applications/{applicationId}/advance", accessToken, null, cancellationToken);
+
+    public Task<IReadOnlyList<CourseCatalogItemInfo>> GetCourseCatalogAsync(string accessToken, CancellationToken cancellationToken = default) =>
+        GetAsync<CourseCatalogItemInfo>("/api/courses", accessToken, cancellationToken);
+
+    public Task<IReadOnlyList<JobCatalogItemInfo>> GetJobCatalogAsync(string accessToken, CancellationToken cancellationToken = default) =>
+        GetAsync<JobCatalogItemInfo>("/api/jobs", accessToken, cancellationToken);
+
+    public Task<IReadOnlyList<EmployerJobListingItemInfo>> GetMyJobPostingsAsync(string accessToken, CancellationToken cancellationToken = default) =>
+        GetAsync<EmployerJobListingItemInfo>("/api/jobs/mine", accessToken, cancellationToken);
+
+    private async Task<IReadOnlyList<T>> GetAsync<T>(string url, string accessToken, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await Client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return [];
+        }
+
+        var items = await response.Content.ReadFromJsonAsync<List<T>>(cancellationToken: cancellationToken);
+        return items ?? [];
+    }
 
     private async Task<MarketplaceApiResult> PostAsync<TBody>(string url, string accessToken, TBody? body, CancellationToken cancellationToken)
     {

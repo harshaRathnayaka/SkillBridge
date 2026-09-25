@@ -1,0 +1,112 @@
+@page "/find-teachers"
+@inject IMarketplaceApiClient MarketplaceApiClient
+@inject IAuthTokenStore TokenStore
+
+<PageTitle>Find teachers</PageTitle>
+
+<RoleGuard Role="Student">
+    <div class="home-hero">
+        <h1>Find a teacher for your subject</h1>
+        <p class="text-muted">Search tutors by subject, compare ratings, and enroll when you're ready.</p>
+    </div>
+
+    <div class="dashboard-card my-3">
+        <input class="form-control" @bind="searchText" @bind:event="oninput" placeholder="Search by subject or teacher name" />
+    </div>
+
+    @if (loading)
+    {
+        <p class="text-muted small">Loading courses…</p>
+    }
+    else
+    {
+        @if (errorMessage is not null)
+        {
+            <div class="alert alert-danger py-1 px-2 small mb-2">@errorMessage</div>
+        }
+        <p class="text-muted small">@FilteredCourses.Count teacher@(FilteredCourses.Count == 1 ? "" : "s") available</p>
+        <div class="catalog-grid">
+            @foreach (var course in FilteredCourses)
+            {
+                <div class="dashboard-card">
+                    <div class="dashboard-card-head">
+                        <div>
+                            <div class="dashboard-card-title">@course.TeacherName</div>
+                            <div class="text-muted small">@course.Title</div>
+                        </div>
+                        <StatusPill Text="@course.Mode" />
+                    </div>
+                    <div class="dashboard-card-foot">
+                        <span class="text-muted small">★ @course.RatingAverage.ToString("0.0") · @course.PriceLabel</span>
+                        @if (course.IsEnrolled)
+                        {
+                            <span class="dashboard-badge">Enrolled</span>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-primary" disabled="@(busyCourseId == course.Id)"
+                                    @onclick="() => EnrollAsync(course.Id)">
+                                @(busyCourseId == course.Id ? "Enrolling…" : "Enroll")
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+        @if (FilteredCourses.Count == 0)
+        {
+            <p class="text-muted small">No courses match your search yet.</p>
+        }
+    }
+</RoleGuard>
+
+@code {
+    private IReadOnlyList<CourseCatalogItemInfo> courses = [];
+    private string searchText = "";
+    private bool loading = true;
+    private string? accessToken;
+    private Guid? busyCourseId;
+    private string? errorMessage;
+
+    private List<CourseCatalogItemInfo> FilteredCourses =>
+        (string.IsNullOrWhiteSpace(searchText)
+            ? courses
+            : courses.Where(c =>
+                c.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                c.TeacherName.Contains(searchText, StringComparison.OrdinalIgnoreCase)))
+        .ToList();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        accessToken = await TokenStore.GetAccessTokenAsync();
+        if (accessToken is not null)
+        {
+            courses = await MarketplaceApiClient.GetCourseCatalogAsync(accessToken);
+        }
+
+        loading = false;
+    }
+
+    private async Task EnrollAsync(Guid courseId)
+    {
+        if (accessToken is null)
+        {
+            return;
+        }
+
+        busyCourseId = courseId;
+        errorMessage = null;
+
+        var result = await MarketplaceApiClient.EnrollAsync(accessToken, courseId);
+        busyCourseId = null;
+        if (!result.Succeeded)
+        {
+            errorMessage = result.Errors.FirstOrDefault() ?? "Couldn't enroll. Please try again.";
+            return;
+        }
+
+        await LoadAsync();
+    }
+}

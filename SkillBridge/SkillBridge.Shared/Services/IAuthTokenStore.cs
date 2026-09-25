@@ -15,4 +15,9 @@ public interface IAuthTokenStore
     Task ClearAsync();
 
     Task<string> GetOrCreateDeviceIdAsync();
+
+    // Convenience wrapper around GetTokensAsync for the common "just need the access token, or
+    // null if signed out" case — a default method needs no changes to either platform
+    // implementation (BrowserAuthTokenStore, AuthTokenStore).
+    async Task<string?> GetAccessTokenAsync() => (await GetTokensAsync())?.AccessToken;
 }

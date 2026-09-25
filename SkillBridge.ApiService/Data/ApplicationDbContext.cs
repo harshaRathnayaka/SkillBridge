@@ -27,9 +27,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         });
 
         // Dashboard domain: plain FK columns with no navigation properties and no constraint
-        // enforced against ApplicationUser, mirroring RefreshToken.UserId above — some owner
-        // ids are seeded system/demo identities rather than real accounts (see
-        // DashboardContentSeeder), so a real FK constraint would reject them.
+        // enforced against ApplicationUser, mirroring RefreshToken.UserId above — kept as
+        // simple indexed columns rather than real joins, consistent across the whole domain.
         builder.Entity<Course>(entity =>
         {
             entity.HasKey(c => c.Id);

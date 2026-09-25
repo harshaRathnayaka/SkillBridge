@@ -1,0 +1,42 @@
+@inject NavigationManager Navigation
+
+@* Page-level counterpart to NavMenu's role-specific links: a signed-out visitor or a signed-in
+   user with the wrong role gets bounced home instead of seeing a marketplace page meant for a
+   different role. Real accounts have exactly one role, so unlike the prototype's demo
+   role-switcher there's nothing useful to offer here besides going back. *@
+<AuthorizeView>
+    <Authorized Context="authContext">
+        @if (authContext.User.IsInRole(Role))
+        {
+            @ChildContent
+        }
+        else
+        {
+            RedirectHome();
+        }
+    </Authorized>
+    <NotAuthorized>
+        @{ RedirectHome(); }
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Role { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public RenderFragment ChildContent { get; set; } = null!;
+
+    private bool redirected;
+
+    private void RedirectHome()
+    {
+        if (redirected)
+        {
+            return;
+        }
+
+        redirected = true;
+        Navigation.NavigateTo("/");
+    }
+}

@@ -46,6 +46,8 @@ public static class ApiProxyEndpoints
     public static IEndpointRouteBuilder MapMarketplaceProxyEndpoints(this IEndpointRouteBuilder app)
     {
         var courses = app.MapGroup("/api/courses").AllowAnonymous();
+        courses.MapGet("/", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Get, "/api/courses"));
         courses.MapPost("/", (HttpContext http, IHttpClientFactory f) =>
             ForwardAsync(http, f, HttpMethod.Post, "/api/courses"));
         courses.MapPost("/{courseId}/enroll", (HttpContext http, IHttpClientFactory f, string courseId) =>
@@ -54,8 +56,14 @@ public static class ApiProxyEndpoints
             ForwardAsync(http, f, HttpMethod.Post, $"/api/courses/{courseId}/materials"));
         courses.MapPost("/materials/{materialId}/publish", (HttpContext http, IHttpClientFactory f, string materialId) =>
             ForwardAsync(http, f, HttpMethod.Post, $"/api/courses/materials/{materialId}/publish"));
+        courses.MapPost("/materials/{materialId}/unpublish", (HttpContext http, IHttpClientFactory f, string materialId) =>
+            ForwardAsync(http, f, HttpMethod.Post, $"/api/courses/materials/{materialId}/unpublish"));
 
         var jobs = app.MapGroup("/api/jobs").AllowAnonymous();
+        jobs.MapGet("/", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Get, "/api/jobs"));
+        jobs.MapGet("/mine", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Get, "/api/jobs/mine"));
         jobs.MapPost("/", (HttpContext http, IHttpClientFactory f) =>
             ForwardAsync(http, f, HttpMethod.Post, "/api/jobs"));
         jobs.MapPost("/{jobPostingId}/apply", (HttpContext http, IHttpClientFactory f, string jobPostingId) =>

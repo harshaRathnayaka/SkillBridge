@@ -17,22 +17,22 @@
                         @if (authContext.User.IsInRole("Student"))
                         {
                             <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">My learning</NavLink>
-                            <span class="app-nav-link app-nav-link-soon" title="Coming soon">Find teachers</span>
+                            <NavLink class="app-nav-link" href="find-teachers">Find teachers</NavLink>
                         }
                         else if (authContext.User.IsInRole("Teacher"))
                         {
                             <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Teaching home</NavLink>
-                            <span class="app-nav-link app-nav-link-soon" title="Coming soon">Course studio</span>
+                            <NavLink class="app-nav-link" href="course-studio">Course studio</NavLink>
                         }
                         else if (authContext.User.IsInRole("JobGiver"))
                         {
                             <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Hiring home</NavLink>
-                            <span class="app-nav-link app-nav-link-soon" title="Coming soon">Post &amp; pipeline</span>
+                            <NavLink class="app-nav-link" href="post-pipeline">Post &amp; pipeline</NavLink>
                         }
                         else if (authContext.User.IsInRole("JobSeeker"))
                         {
                             <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">My applications</NavLink>
-                            <span class="app-nav-link app-nav-link-soon" title="Coming soon">Find work</span>
+                            <NavLink class="app-nav-link" href="find-work">Find work</NavLink>
                         }
                         <NavLink class="app-nav-link" href="change-password">Change password</NavLink>
                     </nav>
