@@ -16,13 +16,21 @@
         <p class="text-muted small mt-3">Running on <em>@factor</em> using <em>@platform</em>.</p>
     </Authorized>
     <NotAuthorized>
-        <div class="home-hero">
+        <div class="landing-hero">
+            <div class="landing-eyebrow">One account. Four paths.</div>
             <h1>Welcome to SkillBridge</h1>
-            <p class="text-muted">Build skills. Share knowledge. Find opportunity. One account, four paths.</p>
+            <p class="landing-subhead">Build skills. Share knowledge. Find opportunity — all from one account, whichever path you're on today.</p>
+            <div class="landing-cta-row">
+                <a class="btn btn-primary btn-lg landing-cta" href="/register">Create free account</a>
+                <a class="btn btn-outline-secondary btn-lg landing-cta" href="/login">Sign in</a>
+            </div>
         </div>
-        <div class="d-flex gap-2 mt-3">
-            <a class="btn btn-primary" href="/login">Sign in</a>
-            <a class="btn btn-outline-secondary" href="/register">Create account</a>
+
+        <div class="role-card-grid">
+            <RoleHighlightCard Icon="L" Title="Student" Description="Enroll in real courses, track your lesson progress, and keep every teacher in one place." />
+            <RoleHighlightCard Icon="T" Title="Tutor" Description="Publish courses, manage materials, and see your classes fill up with real learners." />
+            <RoleHighlightCard Icon="H" Title="Employer" Description="Post open roles and move candidates through your hiring pipeline stage by stage." />
+            <RoleHighlightCard Icon="J" Title="Job seeker" Description="Browse open roles, filter by work mode, and apply in one click." />
         </div>
     </NotAuthorized>
 </AuthorizeView>

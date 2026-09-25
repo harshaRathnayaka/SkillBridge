@@ -1,0 +1,16 @@
+<div class="role-card">
+    <span class="role-card-icon">@Icon</span>
+    <div class="role-card-title">@Title</div>
+    <p class="role-card-description">@Description</p>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public string Description { get; set; } = "";
+}
