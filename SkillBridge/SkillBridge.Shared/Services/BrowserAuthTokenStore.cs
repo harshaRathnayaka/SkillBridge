@@ -19,6 +19,7 @@ public class BrowserAuthTokenStore(IJSRuntime js) : IAuthTokenStore
     private const string RefreshTokenKey = "sb_refresh_token";
     private const string ExpiresAtKey = "sb_expires_at";
     private const string DeviceIdKey = "sb_device_id";
+    private const string ActiveRoleKey = "sb_active_role";
 
     public async Task SaveTokensAsync(string accessToken, string refreshToken, DateTimeOffset expiresAtUtc)
     {
@@ -45,7 +46,17 @@ public class BrowserAuthTokenStore(IJSRuntime js) : IAuthTokenStore
         await js.InvokeVoidAsync("localStorage.removeItem", AccessTokenKey);
         await js.InvokeVoidAsync("localStorage.removeItem", RefreshTokenKey);
         await js.InvokeVoidAsync("localStorage.removeItem", ExpiresAtKey);
+        // Not DeviceIdKey — that persists across logout by design. The active role is reset,
+        // though: a different account signing in on the same browser shouldn't inherit a
+        // preference for a role it might not even hold.
+        await js.InvokeVoidAsync("localStorage.removeItem", ActiveRoleKey);
     }
+
+    public async Task<string?> GetActiveRoleAsync() =>
+        await js.InvokeAsync<string?>("localStorage.getItem", ActiveRoleKey);
+
+    public async Task SetActiveRoleAsync(string role) =>
+        await js.InvokeVoidAsync("localStorage.setItem", ActiveRoleKey, role);
 
     public async Task<string> GetOrCreateDeviceIdAsync()
     {

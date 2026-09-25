@@ -14,10 +14,18 @@ public record SimpleApiResult(bool Succeeded, string[] Errors)
     public static SimpleApiResult Failure(string[] errors) => new(false, errors);
 }
 
+public record AddRolePayload(string AccessToken, DateTimeOffset ExpiresAtUtc, string[] Roles);
+
+public record AddRoleApiResult(bool Succeeded, AddRolePayload? Payload, string[] Errors)
+{
+    public static AddRoleApiResult Success(AddRolePayload payload) => new(true, payload, []);
+    public static AddRoleApiResult Failure(string[] errors) => new(false, null, errors);
+}
+
 public interface IAuthApiClient
 {
     Task<AuthApiResult> RegisterAsync(
-        string email, string password, string displayName, string role, string deviceId,
+        string email, string password, string displayName, IReadOnlyList<string> roles, string deviceId,
         string? deviceLabel = null, CancellationToken cancellationToken = default);
 
     Task<AuthApiResult> LoginAsync(
@@ -35,4 +43,6 @@ public interface IAuthApiClient
 
     Task<SimpleApiResult> ChangePasswordAsync(
         string accessToken, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
+
+    Task<AddRoleApiResult> AddRoleAsync(string accessToken, string role, CancellationToken cancellationToken = default);
 }

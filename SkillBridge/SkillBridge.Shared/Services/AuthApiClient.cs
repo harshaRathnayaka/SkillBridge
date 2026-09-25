@@ -27,18 +27,19 @@ public class AuthApiClient(HttpClient httpClient, NavigationManager? navigationM
         }
     }
 
-    private record RegisterBody(string Email, string Password, string DisplayName, string Role, string DeviceId, string? DeviceLabel);
+    private record RegisterBody(string Email, string Password, string DisplayName, IReadOnlyList<string> Roles, string DeviceId, string? DeviceLabel);
     private record LoginBody(string Email, string Password, string DeviceId, string? DeviceLabel, bool RememberMe);
     private record RefreshBody(string RefreshToken, string DeviceId);
     private record ForgotPasswordBody(string Email);
     private record ResetPasswordBody(string Email, string Token, string NewPassword);
     private record ChangePasswordBody(string CurrentPassword, string NewPassword);
+    private record AddRoleBody(string Role);
     private record ErrorBody(string[] Errors);
 
     public Task<AuthApiResult> RegisterAsync(
-        string email, string password, string displayName, string role, string deviceId,
+        string email, string password, string displayName, IReadOnlyList<string> roles, string deviceId,
         string? deviceLabel = null, CancellationToken cancellationToken = default) =>
-        PostAuthAsync("/api/auth/register", new RegisterBody(email, password, displayName, role, deviceId, deviceLabel), cancellationToken);
+        PostAuthAsync("/api/auth/register", new RegisterBody(email, password, displayName, roles, deviceId, deviceLabel), cancellationToken);
 
     public Task<AuthApiResult> LoginAsync(
         string email, string password, string deviceId,
@@ -77,6 +78,25 @@ public class AuthApiClient(HttpClient httpClient, NavigationManager? navigationM
 
         var error = await response.Content.ReadFromJsonAsync<ErrorBody>(cancellationToken: cancellationToken);
         return SimpleApiResult.Failure(error?.Errors ?? ["Something went wrong. Please try again."]);
+    }
+
+    public async Task<AddRoleApiResult> AddRoleAsync(string accessToken, string role, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/roles")
+        {
+            Content = JsonContent.Create(new AddRoleBody(role)),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await Client.SendAsync(request, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            var payload = await response.Content.ReadFromJsonAsync<AddRolePayload>(cancellationToken: cancellationToken);
+            return payload is null ? AddRoleApiResult.Failure(["Unexpected empty response."]) : AddRoleApiResult.Success(payload);
+        }
+
+        var error = await response.Content.ReadFromJsonAsync<ErrorBody>(cancellationToken: cancellationToken);
+        return AddRoleApiResult.Failure(error?.Errors ?? ["Something went wrong. Please try again."]);
     }
 
     private async Task<AuthApiResult> PostAuthAsync<TBody>(string url, TBody body, CancellationToken cancellationToken)

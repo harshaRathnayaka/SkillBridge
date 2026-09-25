@@ -190,7 +190,9 @@
         accessToken = await TokenStore.GetAccessTokenAsync();
         if (accessToken is not null)
         {
-            var dashboard = await DashboardApiClient.GetDashboardAsync(accessToken);
+            // Always the Teacher section, regardless of the account's currently-active role
+            // elsewhere — this page is Teacher-gated (RoleGuard), not tied to the switcher.
+            var dashboard = await DashboardApiClient.GetDashboardAsync(accessToken, "Teacher");
             tutor = dashboard?.Tutor;
         }
 

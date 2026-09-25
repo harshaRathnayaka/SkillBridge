@@ -14,7 +14,7 @@ public class EmailConfirmationTests
         HttpClient client, ApiServiceTestFactory factory, string email)
     {
         var response = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Confirm User", "Student", "device-1"));
+            email, "P@ssw0rd123!", "Confirm User", ["Student"], "device-1"));
         response.EnsureSuccessStatusCode();
 
         var sent = factory.EmailSender.SentEmails.Single(e => e.To == email && e.Subject.Contains("Confirm"));
@@ -29,7 +29,7 @@ public class EmailConfirmationTests
         const string email = "confirm-sent@example.com";
 
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Confirm User", "Student", "device-1"));
+            email, "P@ssw0rd123!", "Confirm User", ["Student"], "device-1"));
 
         Assert.Contains(factory.EmailSender.SentEmails, e => e.To == email && e.Subject.Contains("Confirm"));
 
@@ -63,7 +63,7 @@ public class EmailConfirmationTests
         using var client = factory.CreateClient();
         const string email = "confirm-badtoken@example.com";
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Confirm User", "Student", "device-1"));
+            email, "P@ssw0rd123!", "Confirm User", ["Student"], "device-1"));
 
         var response = await client.PostAsJsonAsync(
             "/api/auth/confirm-email", new ConfirmEmailRequest(email, "not-a-real-token"));
@@ -111,7 +111,7 @@ public class EmailConfirmationTests
         const string email = "confirm-not-required@example.com";
         const string password = "P@ssw0rd123!";
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, password, "Confirm User", "Student", "device-1"));
+            email, password, "Confirm User", ["Student"], "device-1"));
 
         var response = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password, "device-2"));
 

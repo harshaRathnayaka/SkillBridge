@@ -17,9 +17,10 @@ public class DashboardApiClient(HttpClient httpClient, NavigationManager? naviga
         }
     }
 
-    public async Task<DashboardInfo?> GetDashboardAsync(string accessToken, CancellationToken cancellationToken = default)
+    public async Task<DashboardInfo?> GetDashboardAsync(string accessToken, string? activeRole = null, CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/dashboard");
+        var url = activeRole is null ? "/api/dashboard" : $"/api/dashboard?role={Uri.EscapeDataString(activeRole)}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await Client.SendAsync(request, cancellationToken);

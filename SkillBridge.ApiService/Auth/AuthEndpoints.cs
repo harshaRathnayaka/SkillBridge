@@ -24,6 +24,7 @@ public static class AuthEndpoints
         group.MapPost("/reset-password", ResetPasswordAsync);
         group.MapPost("/change-password", ChangePasswordAsync).RequireAuthorization();
         group.MapPost("/confirm-email", ConfirmEmailAsync);
+        group.MapPost("/roles", AddRoleAsync).RequireAuthorization();
 
         return app;
     }
@@ -239,9 +240,16 @@ public static class AuthEndpoints
         IEmailSender emailSender,
         IConfiguration configuration)
     {
-        if (!RoleSeeder.RoleNames.Contains(request.Role, StringComparer.Ordinal))
+        var requestedRoles = request.Roles.Distinct(StringComparer.Ordinal).ToList();
+        if (requestedRoles.Count == 0)
         {
-            return Results.BadRequest(new ErrorResponse([$"'{request.Role}' is not a recognized role."]));
+            return Results.BadRequest(new ErrorResponse(["Choose at least one role."]));
+        }
+
+        var unrecognized = requestedRoles.Where(r => !RoleSeeder.RoleNames.Contains(r, StringComparer.Ordinal)).ToList();
+        if (unrecognized.Count > 0)
+        {
+            return Results.BadRequest(new ErrorResponse([$"'{unrecognized[0]}' is not a recognized role."]));
         }
 
         var user = new ApplicationUser
@@ -257,7 +265,11 @@ public static class AuthEndpoints
             return Results.BadRequest(new ErrorResponse(createResult.Errors.Select(e => e.Description).ToArray()));
         }
 
-        await userManager.AddToRoleAsync(user, request.Role);
+        foreach (var roleName in requestedRoles)
+        {
+            await userManager.AddToRoleAsync(user, roleName);
+        }
+
         var roles = await userManager.GetRolesAsync(user);
 
         // Account is created and usable immediately (unchanged behavior) — confirmation is
@@ -281,5 +293,50 @@ public static class AuthEndpoints
             createdByIp: null);
 
         return Results.Ok(new AuthResponse(accessToken, refreshToken, expiresAtUtc, roles.ToArray(), user.DisplayName));
+    }
+
+    private static readonly ErrorResponse AlreadyHasRole = new(["You already have this role."]);
+
+    private static async Task<IResult> AddRoleAsync(
+        AddRoleRequest request,
+        HttpContext http,
+        UserManager<ApplicationUser> userManager,
+        ITokenService tokenService,
+        IConfiguration configuration)
+    {
+        var userId = http.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        if (userId is null)
+        {
+            return Results.Json(Unauthenticated, statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        if (!RoleSeeder.RoleNames.Contains(request.Role, StringComparer.Ordinal))
+        {
+            return Results.BadRequest(new ErrorResponse([$"'{request.Role}' is not a recognized role."]));
+        }
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return Results.Json(Unauthenticated, statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        var existingRoles = await userManager.GetRolesAsync(user);
+        if (existingRoles.Contains(request.Role, StringComparer.Ordinal))
+        {
+            return Results.Json(AlreadyHasRole, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        await userManager.AddToRoleAsync(user, request.Role);
+        var roles = await userManager.GetRolesAsync(user);
+
+        // Only the access token is re-issued — it's the only place roles are baked in. The
+        // caller's existing refresh token is untouched: RefreshAsync/LoginAsync already look up
+        // roles fresh from the database on every call, so it needs no update of its own.
+        var accessTokenMinutes = configuration.GetValue("Jwt:AccessTokenMinutes", 15);
+        var expiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(accessTokenMinutes);
+        var accessToken = tokenService.CreateAccessToken(user, roles, expiresAtUtc);
+
+        return Results.Ok(new AddRoleResponse(accessToken, expiresAtUtc, roles.ToArray()));
     }
 }

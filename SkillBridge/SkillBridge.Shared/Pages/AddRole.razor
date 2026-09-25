@@ -1,0 +1,80 @@
+@page "/add-role"
+@using System.Security.Claims
+@inject IAuthApiClient AuthApiClient
+@inject IAuthTokenStore TokenStore
+@inject NavigationManager Navigation
+
+<PageTitle>Add a role</PageTitle>
+
+<AuthorizeView>
+    <Authorized Context="authContext">
+        <h1>Add a role</h1>
+        <p class="text-muted">One account, several paths — add another role to your account without creating a new sign-in.</p>
+
+        @{
+            var heldRoles = authContext.User.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToHashSet();
+            var availableRoles = Enum.GetValues<Role>().Where(r => !heldRoles.Contains(r.ToString())).ToList();
+        }
+
+        @if (errorMessage is not null)
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        @if (availableRoles.Count == 0)
+        {
+            <p class="text-muted small">Your account already holds every available role.</p>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2 col-12 col-md-6">
+                @foreach (var role in availableRoles)
+                {
+                    <div class="dashboard-card d-flex justify-content-between align-items-center">
+                        <span>@role.ToFriendlyName()</span>
+                        <button class="btn btn-sm btn-primary" disabled="@(addingRole == role)" @onclick="() => AddRoleAsync(role)">
+                            @(addingRole == role ? "Adding…" : "Add")
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p><a href="/login">Sign in</a> to add a role to your account.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private Role? addingRole;
+    private string? errorMessage;
+
+    private async Task AddRoleAsync(Role role)
+    {
+        errorMessage = null;
+        addingRole = role;
+
+        var tokens = await TokenStore.GetTokensAsync();
+        if (tokens is null)
+        {
+            errorMessage = "You're not signed in.";
+            addingRole = null;
+            return;
+        }
+
+        var result = await AuthApiClient.AddRoleAsync(tokens.AccessToken, role.ToString());
+        addingRole = null;
+
+        if (!result.Succeeded || result.Payload is null)
+        {
+            errorMessage = result.Errors.FirstOrDefault() ?? "Couldn't add that role. Please try again.";
+            return;
+        }
+
+        // Only the access token changed — the refresh token from registration/login is still
+        // valid and untouched (see AuthEndpoints.AddRoleAsync's comment on why).
+        await TokenStore.SaveTokensAsync(result.Payload.AccessToken, tokens.RefreshToken, result.Payload.ExpiresAtUtc);
+        await TokenStore.SetActiveRoleAsync(role.ToString());
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

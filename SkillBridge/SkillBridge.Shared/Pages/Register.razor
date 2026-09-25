@@ -58,15 +58,17 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">I am a...</label>
-                    <InputSelect class="form-select" @bind-Value="model.Role">
-                        <option value="">Choose a role</option>
-                        @foreach (var role in Enum.GetValues<Role>())
-                        {
-                            <option value="@role">@role.ToFriendlyName()</option>
-                        }
-                    </InputSelect>
-                    <ValidationMessage For="() => model.Role" />
+                    <label class="form-label">I am a... (choose one or more)</label>
+                    @foreach (var role in Enum.GetValues<Role>())
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="role-@role"
+                                   checked="@model.Roles.Contains(role)"
+                                   @onchange="@(e => ToggleRole(role, (bool)e.Value!))" />
+                            <label class="form-check-label" for="role-@role">@role.ToFriendlyName()</label>
+                        </div>
+                    }
+                    <ValidationMessage For="() => model.Roles" />
                 </div>
 
                 <button class="btn btn-primary w-100" type="submit" disabled="@isSubmitting">
@@ -87,6 +89,21 @@
     private bool isSubmitting;
     private bool showPassword;
 
+    private void ToggleRole(Role role, bool isSelected)
+    {
+        if (isSelected)
+        {
+            if (!model.Roles.Contains(role))
+            {
+                model.Roles.Add(role);
+            }
+        }
+        else
+        {
+            model.Roles.Remove(role);
+        }
+    }
+
     private async Task HandleValidSubmit()
     {
         isSubmitting = true;
@@ -94,7 +111,7 @@
 
         var deviceId = await TokenStore.GetOrCreateDeviceIdAsync();
         var result = await AuthApiClient.RegisterAsync(
-            model.Email, model.Password, model.DisplayName, model.Role!.Value.ToString(), deviceId);
+            model.Email, model.Password, model.DisplayName, model.Roles.Select(r => r.ToString()).ToList(), deviceId);
 
         if (!result.Succeeded || result.Payload is null)
         {
@@ -104,6 +121,9 @@
         }
 
         await TokenStore.SaveTokensAsync(result.Payload.AccessToken, result.Payload.RefreshToken, result.Payload.ExpiresAtUtc);
+        // Preserves the order the roles were picked in — feels more intentional as a starting
+        // active role than whatever order the server's role lookup happens to return.
+        await TokenStore.SetActiveRoleAsync(model.Roles[0].ToString());
         Navigation.NavigateTo("/", forceLoad: true);
     }
 }

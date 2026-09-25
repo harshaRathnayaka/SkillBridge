@@ -14,7 +14,7 @@ public class AccountLockoutTests
 
     private static async Task RegisterAsync(HttpClient client, string email) =>
         (await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, Password, "Lockout User", "Student", "device-1"))).EnsureSuccessStatusCode();
+            email, Password, "Lockout User", ["Student"], "device-1"))).EnsureSuccessStatusCode();
 
     [Fact]
     public async Task The_attempt_that_crosses_the_failure_threshold_locks_the_account_immediately()

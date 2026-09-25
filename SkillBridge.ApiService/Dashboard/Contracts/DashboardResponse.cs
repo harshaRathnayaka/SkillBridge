@@ -5,6 +5,7 @@ namespace SkillBridge.ApiService.Dashboard.Contracts;
 // them wouldn't make any of them independently reusable — just more files to open together.
 public record DashboardResponse(
     string Role,
+    IReadOnlyList<string> AllRoles,
     StudentDashboard? Student,
     TutorDashboard? Tutor,
     EmployerDashboard? Employer,

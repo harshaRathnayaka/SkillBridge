@@ -10,6 +10,7 @@ public class AuthTokenStore : IAuthTokenStore
     private const string RefreshTokenKey = "auth.refresh_token";
     private const string ExpiresAtKey = "auth.expires_at";
     private const string DeviceIdKey = "auth.device_id";
+    private const string ActiveRoleKey = "auth.active_role";
 
     public async Task SaveTokensAsync(string accessToken, string refreshToken, DateTimeOffset expiresAtUtc)
     {
@@ -37,8 +38,16 @@ public class AuthTokenStore : IAuthTokenStore
         SecureStorage.Default.Remove(AccessTokenKey);
         SecureStorage.Default.Remove(RefreshTokenKey);
         SecureStorage.Default.Remove(ExpiresAtKey);
+        // Not DeviceIdKey — that persists across logout by design. The active role is reset,
+        // though: a different account signing in on the same device shouldn't inherit a
+        // preference for a role it might not even hold.
+        SecureStorage.Default.Remove(ActiveRoleKey);
         return Task.CompletedTask;
     }
+
+    public Task<string?> GetActiveRoleAsync() => SecureStorage.Default.GetAsync(ActiveRoleKey);
+
+    public Task SetActiveRoleAsync(string role) => SecureStorage.Default.SetAsync(ActiveRoleKey, role);
 
     public async Task<string> GetOrCreateDeviceIdAsync()
     {

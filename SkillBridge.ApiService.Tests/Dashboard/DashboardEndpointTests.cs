@@ -22,10 +22,13 @@ public class DashboardEndpointTests
     private static readonly CreateJobPostingRequest ValidPosting = new(
         "Senior Tutor", "Colombo, LK", "Hybrid", "Part-time", "LKR 3,000 / hr");
 
-    private static async Task<AuthResponse> RegisterAsync(HttpClient client, string email, string role, string displayName = "Test User")
+    private static Task<AuthResponse> RegisterAsync(HttpClient client, string email, string role, string displayName = "Test User") =>
+        RegisterAsync(client, email, [role], displayName);
+
+    private static async Task<AuthResponse> RegisterAsync(HttpClient client, string email, IReadOnlyList<string> roles, string displayName = "Test User")
     {
         var response = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, Password, displayName, role, $"device-{Guid.NewGuid():N}"));
+            email, Password, displayName, roles, $"device-{Guid.NewGuid():N}"));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }
@@ -45,8 +48,11 @@ public class DashboardEndpointTests
         return request;
     }
 
-    private static async Task<HttpResponseMessage> GetDashboardAsync(HttpClient client, string? accessToken) =>
-        await client.SendAsync(BuildRequest(HttpMethod.Get, "/api/dashboard", accessToken));
+    private static async Task<HttpResponseMessage> GetDashboardAsync(HttpClient client, string? accessToken, string? activeRole = null)
+    {
+        var url = activeRole is null ? "/api/dashboard" : $"/api/dashboard?role={activeRole}";
+        return await client.SendAsync(BuildRequest(HttpMethod.Get, url, accessToken));
+    }
 
     [Fact]
     public async Task Dashboard_without_a_bearer_token_is_rejected()
@@ -188,5 +194,43 @@ public class DashboardEndpointTests
 
         Assert.Single(body!.Tutor!.Courses);
         Assert.Equal("React Fundamentals", body.Tutor.Courses[0].Title);
+    }
+
+    [Fact]
+    public async Task A_multi_role_accounts_active_role_query_param_picks_which_section_is_built_and_AllRoles_lists_everything_held()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var auth = await RegisterAsync(client, "dash-multi-role@example.com", ["Teacher", "Student"]);
+
+        var asTeacher = await GetDashboardAsync(client, auth.AccessToken, "Teacher");
+        var teacherBody = await asTeacher.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal("Teacher", teacherBody!.Role);
+        Assert.NotNull(teacherBody.Tutor);
+        Assert.Null(teacherBody.Student);
+        Assert.Equal(["Student", "Teacher"], teacherBody.AllRoles.OrderBy(r => r));
+
+        var asStudent = await GetDashboardAsync(client, auth.AccessToken, "Student");
+        var studentBody = await asStudent.Content.ReadFromJsonAsync<DashboardResponse>();
+        Assert.Equal("Student", studentBody!.Role);
+        Assert.NotNull(studentBody.Student);
+        Assert.Null(studentBody.Tutor);
+        Assert.Equal(["Student", "Teacher"], studentBody.AllRoles.OrderBy(r => r));
+    }
+
+    [Fact]
+    public async Task Omitting_the_role_query_param_still_returns_a_valid_single_section()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var auth = await RegisterAsync(client, "dash-no-role-param@example.com", ["Teacher", "Student"]);
+
+        var response = await GetDashboardAsync(client, auth.AccessToken);
+        var body = await response.Content.ReadFromJsonAsync<DashboardResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(body!.Role is "Teacher" or "Student");
+        Assert.True(body.Tutor is not null || body.Student is not null);
+        Assert.Equal(["Student", "Teacher"], body.AllRoles.OrderBy(r => r));
     }
 }

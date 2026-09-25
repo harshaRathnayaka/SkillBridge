@@ -4,6 +4,6 @@ public record RegisterRequest(
     string Email,
     string Password,
     string DisplayName,
-    string Role,
+    IReadOnlyList<string> Roles,
     string DeviceId,
     string? DeviceLabel = null);

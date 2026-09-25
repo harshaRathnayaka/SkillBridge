@@ -1,3 +1,4 @@
+@using System.Security.Claims
 @inject IAuthApiClient AuthApiClient
 @inject IAuthTokenStore TokenStore
 @inject NavigationManager Navigation
@@ -13,33 +14,48 @@
         <div class="app-menu">
             <AuthorizeView>
                 <Authorized Context="authContext">
+                    @{
+                        var accountRoles = GetAccountRoles(authContext.User);
+                        var activeRole = ResolveActiveRole(accountRoles);
+                    }
                     <nav class="app-menu-links">
-                        @if (authContext.User.IsInRole("Student"))
+                        @if (activeRole == "Student")
                         {
                             <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">My learning</NavLink>
                             <NavLink class="app-nav-link" href="find-teachers">Find teachers</NavLink>
                         }
-                        else if (authContext.User.IsInRole("Teacher"))
+                        else if (activeRole == "Teacher")
                         {
                             <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Teaching home</NavLink>
                             <NavLink class="app-nav-link" href="course-studio">Course studio</NavLink>
                         }
-                        else if (authContext.User.IsInRole("JobGiver"))
+                        else if (activeRole == "JobGiver")
                         {
                             <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Hiring home</NavLink>
                             <NavLink class="app-nav-link" href="post-pipeline">Post &amp; pipeline</NavLink>
                         }
-                        else if (authContext.User.IsInRole("JobSeeker"))
+                        else if (activeRole == "JobSeeker")
                         {
                             <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">My applications</NavLink>
                             <NavLink class="app-nav-link" href="find-work">Find work</NavLink>
                         }
+                        <NavLink class="app-nav-link" href="add-role">Add a role</NavLink>
                         <NavLink class="app-nav-link" href="change-password">Change password</NavLink>
                     </nav>
                     <div class="app-menu-actions">
+                        @if (accountRoles.Count > 1)
+                        {
+                            <select class="form-select form-select-sm app-role-switcher" value="@activeRole"
+                                    @onchange="@(e => SwitchRoleAsync((string)e.Value!))">
+                                @foreach (var role in accountRoles)
+                                {
+                                    <option value="@role">Viewing as @role.ToFriendlyName()</option>
+                                }
+                            </select>
+                        }
                         <span class="app-role-pill" data-testid="role-badge">
                             Signed in as @authContext.User.Identity?.Name
-                            (@string.Join(", ", authContext.User.Claims.Where(c => c.Type == System.Security.Claims.ClaimTypes.Role).Select(c => c.Value.ToFriendlyName())))
+                            (@string.Join(", ", accountRoles.Select(r => r.ToFriendlyName())))
                         </span>
                         <button class="btn btn-sm btn-outline-light" @onclick="HandleLogoutAsync">Logout</button>
                     </div>
@@ -56,6 +72,31 @@
 </header>
 
 @code {
+    private string? storedActiveRole;
+
+    protected override async Task OnInitializedAsync()
+    {
+        storedActiveRole = await TokenStore.GetActiveRoleAsync();
+    }
+
+    private static List<string> GetAccountRoles(ClaimsPrincipal user) =>
+        user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToList();
+
+    // Falls back to whichever role happens to come first in the claims if nothing's been
+    // explicitly chosen yet (e.g. a pre-existing single-role account that predates this
+    // feature) — RoleDashboard persists that choice on its own next load, so this fallback
+    // only ever fires once per account.
+    private string ResolveActiveRole(List<string> accountRoles) =>
+        storedActiveRole is not null && accountRoles.Contains(storedActiveRole)
+            ? storedActiveRole
+            : accountRoles.FirstOrDefault() ?? "";
+
+    private async Task SwitchRoleAsync(string role)
+    {
+        await TokenStore.SetActiveRoleAsync(role);
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
     private async Task HandleLogoutAsync()
     {
         var deviceId = await TokenStore.GetOrCreateDeviceIdAsync();

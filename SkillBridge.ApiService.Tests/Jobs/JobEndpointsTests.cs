@@ -15,7 +15,7 @@ public class JobEndpointsTests
     private static async Task<AuthResponse> RegisterAsync(HttpClient client, string email, string role, string displayName = "Test User")
     {
         var response = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, Password, displayName, role, $"device-{Guid.NewGuid():N}"));
+            email, Password, displayName, [role], $"device-{Guid.NewGuid():N}"));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }

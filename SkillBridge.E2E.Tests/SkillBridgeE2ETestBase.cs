@@ -15,14 +15,22 @@ public abstract class SkillBridgeE2ETestBase : PageTest
     protected static string UniqueEmail(string label) =>
         $"{label}-{Guid.NewGuid():N}@example.com";
 
-    protected async Task RegisterAsync(IPage page, string displayName, string email, string password, string role)
+    protected async Task RegisterAsync(IPage page, string displayName, string email, string password, string role) =>
+        await RegisterAsync(page, displayName, email, password, [role]);
+
+    // Register.razor's role field is a checkbox per role (id="role-{RawRoleName}", e.g.
+    // "role-Teacher") rather than a single-select, since one account can hold several roles.
+    protected async Task RegisterAsync(IPage page, string displayName, string email, string password, IReadOnlyList<string> roles)
     {
         await page.GotoAsync($"{BaseUrl}/register");
         await page.GetByPlaceholder("Ada Lovelace").FillAsync(displayName);
         await page.GetByPlaceholder("you@example.com").FillAsync(email);
         await page.GetByPlaceholder("At least 8 characters").FillAsync(password);
         await page.GetByPlaceholder("Re-enter your password").FillAsync(password);
-        await page.Locator("select").SelectOptionAsync(role);
+        foreach (var role in roles)
+        {
+            await page.Locator($"#role-{role}").CheckAsync();
+        }
         await page.GetByRole(AriaRole.Button, new() { Name = "Create account" }).ClickAsync();
         await page.WaitForURLAsync($"{BaseUrl}/");
     }

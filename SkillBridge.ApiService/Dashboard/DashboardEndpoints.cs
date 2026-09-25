@@ -1,5 +1,5 @@
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.EntityFrameworkCore;
+using SkillBridge.ApiService.Auth;
 using SkillBridge.ApiService.Auth.Contracts;
 using SkillBridge.ApiService.Data;
 using SkillBridge.ApiService.Dashboard.Contracts;
@@ -16,26 +16,31 @@ public static class DashboardEndpoints
 
     private static readonly ErrorResponse Unauthenticated = new(["Not authenticated."]);
 
+    // A multi-role account picks which role's dashboard to view via ?role=X (the "active role"
+    // concept lives client-side, see NavMenu.razor). Falls back to whichever role GetRolesAsync
+    // happened to return first if the query string is missing or names a role this account
+    // doesn't actually hold — a same-request fallback only, since the client always resolves
+    // and persists a real active role once it has one.
     private static async Task<IResult> GetDashboardAsync(HttpContext http, ApplicationDbContext db)
     {
-        var userId = http.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        var (userId, roles, _) = CallerContext.From(http);
         if (userId is null)
         {
             return Results.Json(Unauthenticated, statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        // "role" claims are mapped to ClaimTypes.Role client-side (AppAuthenticationStateProvider)
-        // but arrive here exactly as TokenService issued them — see AuthEndpoints.ChangePasswordAsync
-        // for the same Sub-claim pattern this reuses.
-        var role = http.User.FindFirst("role")?.Value;
+        var requestedRole = http.Request.Query["role"].FirstOrDefault();
+        var activeRole = requestedRole is not null && roles.Contains(requestedRole)
+            ? requestedRole
+            : roles.FirstOrDefault();
 
-        var response = role switch
+        var response = activeRole switch
         {
-            "Student" => new DashboardResponse("Student", await BuildStudentDashboardAsync(db, userId), null, null, null),
-            "Teacher" => new DashboardResponse("Teacher", null, await BuildTutorDashboardAsync(db, userId), null, null),
-            "JobGiver" => new DashboardResponse("JobGiver", null, null, await BuildEmployerDashboardAsync(db, userId), null),
-            "JobSeeker" => new DashboardResponse("JobSeeker", null, null, null, await BuildJobSeekerDashboardAsync(db, userId)),
-            _ => new DashboardResponse(role ?? "Unknown", null, null, null, null),
+            "Student" => new DashboardResponse("Student", roles, await BuildStudentDashboardAsync(db, userId), null, null, null),
+            "Teacher" => new DashboardResponse("Teacher", roles, null, await BuildTutorDashboardAsync(db, userId), null, null),
+            "JobGiver" => new DashboardResponse("JobGiver", roles, null, null, await BuildEmployerDashboardAsync(db, userId), null),
+            "JobSeeker" => new DashboardResponse("JobSeeker", roles, null, null, null, await BuildJobSeekerDashboardAsync(db, userId)),
+            _ => new DashboardResponse(activeRole ?? "Unknown", roles, null, null, null, null),
         };
 
         return Results.Ok(response);

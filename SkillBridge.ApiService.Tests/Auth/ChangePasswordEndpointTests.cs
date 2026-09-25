@@ -14,7 +14,7 @@ public class ChangePasswordEndpointTests
     private static async Task<AuthResponse> RegisterAsync(HttpClient client, string email)
     {
         var response = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, OriginalPassword, "Change Pw User", "Student", "device-1"));
+            email, OriginalPassword, "Change Pw User", ["Student"], "device-1"));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }

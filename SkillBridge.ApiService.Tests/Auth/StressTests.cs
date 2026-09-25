@@ -27,7 +27,7 @@ public class StressTests
         var stopwatch = Stopwatch.StartNew();
         var responses = await Task.WhenAll(Enumerable.Range(0, userCount).Select(i => client.PostAsJsonAsync(
             "/api/auth/register",
-            new RegisterRequest($"stress-user-{i}@example.com", "P@ssw0rd123!", $"Stress User {i}", "Student", $"device-{i}"))));
+            new RegisterRequest($"stress-user-{i}@example.com", "P@ssw0rd123!", $"Stress User {i}", ["Student"], $"device-{i}"))));
         stopwatch.Stop();
 
         Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
@@ -47,7 +47,7 @@ public class StressTests
         const string email = "stress-multidevice@example.com";
         const int deviceCount = 30;
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Stress Multi Device", "Student", "device-seed"));
+            email, "P@ssw0rd123!", "Stress Multi Device", ["Student"], "device-seed"));
 
         var loginResponses = await Task.WhenAll(Enumerable.Range(0, deviceCount).Select(i => client.PostAsJsonAsync(
             "/api/auth/login", new LoginRequest(email, "P@ssw0rd123!", $"device-{i}"))));
@@ -78,7 +78,7 @@ public class StressTests
         using var client = factory.CreateClient();
         const string email = "stress-mixed-login@example.com";
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Stress Mixed", "Student", "device-seed"));
+            email, "P@ssw0rd123!", "Stress Mixed", ["Student"], "device-seed"));
 
         var attempts = Enumerable.Range(0, 100).Select(i => i % 3 == 0
             ? client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, "P@ssw0rd123!", $"device-{i}"))

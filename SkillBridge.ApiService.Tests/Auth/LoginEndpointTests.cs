@@ -13,7 +13,7 @@ public class LoginEndpointTests
     private static async Task RegisterAsync(HttpClient client, string email, string password, string deviceId)
     {
         var response = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, password, "Test User", "Student", deviceId));
+            email, password, "Test User", ["Student"], deviceId));
         response.EnsureSuccessStatusCode();
     }
 
