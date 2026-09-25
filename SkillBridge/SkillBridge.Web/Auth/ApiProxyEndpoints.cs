@@ -29,15 +29,18 @@ public static class ApiProxyEndpoints
         group.MapPost("/forgot-password", (HttpContext http, IHttpClientFactory f) => ForwardAsync(http, f, HttpMethod.Post, "/api/auth/forgot-password"));
         group.MapPost("/reset-password", (HttpContext http, IHttpClientFactory f) => ForwardAsync(http, f, HttpMethod.Post, "/api/auth/reset-password"));
         group.MapPost("/change-password", (HttpContext http, IHttpClientFactory f) => ForwardAsync(http, f, HttpMethod.Post, "/api/auth/change-password"));
+        group.MapPost("/roles", (HttpContext http, IHttpClientFactory f) => ForwardAsync(http, f, HttpMethod.Post, "/api/auth/roles"));
         return app;
     }
 
     // Same reasoning as MapAuthProxyEndpoints above: WASM can't reach the ApiService's
     // service-discovery scheme directly, so this same-origin GET passthrough exists purely to
-    // relay the caller's bearer token to the real /api/dashboard endpoint.
+    // relay the caller's bearer token to the real /api/dashboard endpoint. The incoming query
+    // string (?role=X, the active-role selector) is forwarded through verbatim.
     public static IEndpointRouteBuilder MapDashboardProxyEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/dashboard", (HttpContext http, IHttpClientFactory f) => ForwardAsync(http, f, HttpMethod.Get, "/api/dashboard"))
+        app.MapGet("/api/dashboard", (HttpContext http, IHttpClientFactory f) =>
+                ForwardAsync(http, f, HttpMethod.Get, $"/api/dashboard{http.Request.QueryString}"))
             .AllowAnonymous();
         return app;
     }

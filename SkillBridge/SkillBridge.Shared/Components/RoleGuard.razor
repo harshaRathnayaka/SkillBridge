@@ -1,9 +1,16 @@
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IAuthTokenStore TokenStore
 
-@* Page-level counterpart to NavMenu's role-specific links: a signed-out visitor or a signed-in
-   user with the wrong role gets bounced home instead of seeing a marketplace page meant for a
-   different role. Real accounts have exactly one role, so unlike the prototype's demo
-   role-switcher there's nothing useful to offer here besides going back. *@
+@* Page-level counterpart to NavMenu's role-specific links: a signed-out visitor, or a signed-in
+   user whose account doesn't hold this page's role, gets bounced home instead of seeing a
+   marketplace page meant for a role they don't have. A multi-role account that DOES hold this
+   role is let through (IsInRole naturally OR-matches across every "role" claim), and its active
+   role is synced to match — so following a link into e.g. "Course studio" makes Teacher the
+   active role everywhere else too, not just on this one page. The sync forces a full reload
+   only when it actually changes something: NavMenu lives in MainLayout, which persists across
+   in-app navigation, so its own already-loaded active role would otherwise never notice this
+   page's write to storage for the rest of the session. *@
 <AuthorizeView>
     <Authorized Context="authContext">
         @if (authContext.User.IsInRole(Role))
@@ -28,6 +35,26 @@
     public RenderFragment ChildContent { get; set; } = null!;
 
     private bool redirected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (!authState.User.IsInRole(Role))
+        {
+            return;
+        }
+
+        var activeRole = await TokenStore.GetActiveRoleAsync();
+        if (activeRole != Role)
+        {
+            await TokenStore.SetActiveRoleAsync(Role);
+            // Reload once so NavMenu (already initialized in MainLayout) picks up the change
+            // immediately instead of showing the previous active role for the rest of the
+            // session. Terminates after exactly one reload: next time through, activeRole
+            // already matches Role.
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+        }
+    }
 
     private void RedirectHome()
     {

@@ -12,10 +12,13 @@ public class CourseEndpointsTests
 {
     private const string Password = "P@ssw0rd123!";
 
-    private static async Task<AuthResponse> RegisterAsync(HttpClient client, string email, string role, string displayName = "Test User")
+    private static Task<AuthResponse> RegisterAsync(HttpClient client, string email, string role, string displayName = "Test User") =>
+        RegisterAsync(client, email, [role], displayName);
+
+    private static async Task<AuthResponse> RegisterAsync(HttpClient client, string email, IReadOnlyList<string> roles, string displayName = "Test User")
     {
         var response = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, Password, displayName, role, $"device-{Guid.NewGuid():N}"));
+            email, Password, displayName, roles, $"device-{Guid.NewGuid():N}"));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }
@@ -248,5 +251,21 @@ public class CourseEndpointsTests
             BuildRequest(HttpMethod.Post, $"/api/courses/materials/{material.Id}/unpublish", otherAuth.AccessToken));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_account_holding_both_teacher_and_student_roles_can_create_and_enroll_with_the_same_token()
+    {
+        using var factory = new ApiServiceTestFactory();
+        using var client = factory.CreateClient();
+        var multiRoleAuth = await RegisterAsync(client, "multi-role-course@example.com", ["Teacher", "Student"], "Multi Role");
+
+        var createResponse = await client.SendAsync(BuildRequest(HttpMethod.Post, "/api/courses", multiRoleAuth.AccessToken, ValidCourse));
+        Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatedResponse>();
+
+        var enrollResponse = await client.SendAsync(
+            BuildRequest(HttpMethod.Post, $"/api/courses/{created!.Id}/enroll", multiRoleAuth.AccessToken));
+        Assert.Equal(HttpStatusCode.OK, enrollResponse.StatusCode);
     }
 }

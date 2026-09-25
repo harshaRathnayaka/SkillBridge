@@ -1,5 +1,5 @@
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.EntityFrameworkCore;
+using SkillBridge.ApiService.Auth;
 using SkillBridge.ApiService.Auth.Contracts;
 using SkillBridge.ApiService.Dashboard;
 using SkillBridge.ApiService.Data;
@@ -26,17 +26,10 @@ public static class JobEndpoints
     private static readonly ErrorResponse NotFound = new(["Not found."]);
     private static readonly ErrorResponse AlreadyApplied = new(["You've already applied to this role."]);
 
-    // Same pattern as DashboardEndpoints.GetDashboardAsync / CourseEndpoints — see those files'
-    // comments on why this reads raw claims directly rather than RequireRole()/Identity.Name.
-    private static (string? UserId, string? Role, string? Name) CallerInfo(HttpContext http) => (
-        http.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value,
-        http.User.FindFirst("role")?.Value,
-        http.User.FindFirst(JwtRegisteredClaimNames.Name)?.Value);
-
     private static async Task<IResult> CreateJobPostingAsync(CreateJobPostingRequest request, HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, name) = CallerInfo(http);
-        if (userId is null || role != "JobGiver")
+        var (userId, roles, name) = CallerContext.From(http);
+        if (userId is null || !roles.Contains("JobGiver"))
         {
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }
@@ -67,8 +60,8 @@ public static class JobEndpoints
 
     private static async Task<IResult> ApplyAsync(Guid jobPostingId, HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, name) = CallerInfo(http);
-        if (userId is null || role != "JobSeeker")
+        var (userId, roles, name) = CallerContext.From(http);
+        if (userId is null || !roles.Contains("JobSeeker"))
         {
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }
@@ -105,8 +98,8 @@ public static class JobEndpoints
 
     private static async Task<IResult> AdvanceStageAsync(Guid applicationId, HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, _) = CallerInfo(http);
-        if (userId is null || role != "JobGiver")
+        var (userId, roles, _) = CallerContext.From(http);
+        if (userId is null || !roles.Contains("JobGiver"))
         {
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }
@@ -141,12 +134,12 @@ public static class JobEndpoints
     // JobSeeker, since only JobSeekers can apply.
     private static async Task<IResult> GetJobCatalogAsync(HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, _) = CallerInfo(http);
+        var (userId, roles, _) = CallerContext.From(http);
 
         var postings = (await db.JobPostings.ToListAsync()).OrderByDescending(p => p.PostedAt).ToList();
         var applicantCounts = ApplicantCountsFor(await db.JobApplications.ToListAsync());
 
-        var appliedPostingIds = role == "JobSeeker"
+        var appliedPostingIds = roles.Contains("JobSeeker")
             ? (await db.JobApplications.Where(a => a.ApplicantId == userId).Select(a => a.JobPostingId).ToListAsync()).ToHashSet()
             : new HashSet<Guid>();
 
@@ -161,8 +154,8 @@ public static class JobEndpoints
 
     private static async Task<IResult> GetMyJobPostingsAsync(HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, _) = CallerInfo(http);
-        if (userId is null || role != "JobGiver")
+        var (userId, roles, _) = CallerContext.From(http);
+        if (userId is null || !roles.Contains("JobGiver"))
         {
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }

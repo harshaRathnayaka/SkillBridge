@@ -71,6 +71,7 @@ public record JobSeekerDashboardInfo(
 
 public record DashboardInfo(
     string Role,
+    IReadOnlyList<string> AllRoles,
     StudentDashboardInfo? Student,
     TutorDashboardInfo? Tutor,
     EmployerDashboardInfo? Employer,
@@ -78,5 +79,7 @@ public record DashboardInfo(
 
 public interface IDashboardApiClient
 {
-    Task<DashboardInfo?> GetDashboardAsync(string accessToken, CancellationToken cancellationToken = default);
+    // activeRole selects which section a multi-role account sees — null lets the server fall
+    // back to whichever of the caller's roles it finds first (see DashboardEndpoints' comment).
+    Task<DashboardInfo?> GetDashboardAsync(string accessToken, string? activeRole = null, CancellationToken cancellationToken = default);
 }

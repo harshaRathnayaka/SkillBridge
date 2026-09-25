@@ -20,4 +20,12 @@ public interface IAuthTokenStore
     // null if signed out" case — a default method needs no changes to either platform
     // implementation (BrowserAuthTokenStore, AuthTokenStore).
     async Task<string?> GetAccessTokenAsync() => (await GetTokensAsync())?.AccessToken;
+
+    // Which of a multi-role account's roles is currently "active" — drives NavMenu's links and
+    // RoleDashboard's data, same idea as the Lovable prototype's own demo role-switcher but
+    // backed by roles the account genuinely holds. A per-viewer UI preference, not part of the
+    // JWT/auth state, so it lives alongside the tokens rather than on the server.
+    Task<string?> GetActiveRoleAsync();
+
+    Task SetActiveRoleAsync(string role);
 }

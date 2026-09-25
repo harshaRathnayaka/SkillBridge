@@ -17,7 +17,7 @@ public class RefreshRotationTests
         using var client = factory.CreateClient();
         const string email = "reuse-detect@example.com";
         var register = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Reuse Detect", "Student", "device-1"));
+            email, "P@ssw0rd123!", "Reuse Detect", ["Student"], "device-1"));
         var initial = await register.Content.ReadFromJsonAsync<AuthResponse>();
 
         var firstRefresh = await client.PostAsJsonAsync(
@@ -50,7 +50,7 @@ public class RefreshRotationTests
         using var client = factory.CreateClient();
         const string email = "race@example.com";
         var register = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Race", "Student", "device-1"));
+            email, "P@ssw0rd123!", "Race", ["Student"], "device-1"));
         var initial = await register.Content.ReadFromJsonAsync<AuthResponse>();
 
         var request = new RefreshRequest(initial!.RefreshToken, "device-1");

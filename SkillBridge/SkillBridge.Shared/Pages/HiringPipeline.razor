@@ -152,7 +152,9 @@
         accessToken = await TokenStore.GetAccessTokenAsync();
         if (accessToken is not null)
         {
-            var dashboard = await DashboardApiClient.GetDashboardAsync(accessToken);
+            // Always the Employer section, regardless of the account's currently-active role
+            // elsewhere — this page is JobGiver-gated (RoleGuard), not tied to the switcher.
+            var dashboard = await DashboardApiClient.GetDashboardAsync(accessToken, "JobGiver");
             employer = dashboard?.Employer;
         }
 

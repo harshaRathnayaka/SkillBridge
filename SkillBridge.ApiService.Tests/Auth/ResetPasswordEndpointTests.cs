@@ -13,7 +13,7 @@ public class ResetPasswordEndpointTests
     private static async Task<string> RegisterAndRequestResetAsync(HttpClient client, ApiServiceTestFactory factory, string email)
     {
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, OriginalPassword, "Reset User", "Student", "device-1"));
+            email, OriginalPassword, "Reset User", ["Student"], "device-1"));
         await client.PostAsJsonAsync("/api/auth/forgot-password", new ForgotPasswordRequest(email));
         var sent = factory.EmailSender.SentEmails.Single(e => e.To == email && e.Subject.Contains("Reset"));
         return ForgotPasswordEndpointTests.ExtractToken(sent.Body);
@@ -47,7 +47,7 @@ public class ResetPasswordEndpointTests
         using var client = factory.CreateClient();
         const string email = "reset-bad-token@example.com";
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, OriginalPassword, "Reset User", "Student", "device-1"));
+            email, OriginalPassword, "Reset User", ["Student"], "device-1"));
 
         var response = await client.PostAsJsonAsync(
             "/api/auth/reset-password", new ResetPasswordRequest(email, "not-a-real-token", NewPassword));

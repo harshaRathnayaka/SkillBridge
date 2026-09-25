@@ -15,7 +15,7 @@ public class ForgotPasswordEndpointTests
         using var client = factory.CreateClient();
         const string email = "forgot@example.com";
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Forgot User", "Student", "device-1"));
+            email, "P@ssw0rd123!", "Forgot User", ["Student"], "device-1"));
 
         var response = await client.PostAsJsonAsync("/api/auth/forgot-password", new ForgotPasswordRequest(email));
 

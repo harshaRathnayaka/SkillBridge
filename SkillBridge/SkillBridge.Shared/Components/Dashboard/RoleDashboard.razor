@@ -41,7 +41,16 @@ else if (dashboard.JobSeeker is not null)
         accessToken = await TokenStore.GetAccessTokenAsync();
         if (accessToken is not null)
         {
-            dashboard = await DashboardApiClient.GetDashboardAsync(accessToken);
+            var activeRole = await TokenStore.GetActiveRoleAsync();
+            dashboard = await DashboardApiClient.GetDashboardAsync(accessToken, activeRole);
+
+            // First load for this account with no stored preference yet — persist whichever
+            // role the server defaulted to, so it stays stable from here on (NavMenu reads the
+            // same value for its own default).
+            if (activeRole is null && dashboard is not null)
+            {
+                await TokenStore.SetActiveRoleAsync(dashboard.Role);
+            }
         }
 
         loading = false;

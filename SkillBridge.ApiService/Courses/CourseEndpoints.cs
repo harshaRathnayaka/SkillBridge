@@ -1,5 +1,5 @@
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.EntityFrameworkCore;
+using SkillBridge.ApiService.Auth;
 using SkillBridge.ApiService.Auth.Contracts;
 using SkillBridge.ApiService.Courses.Contracts;
 using SkillBridge.ApiService.Data;
@@ -27,17 +27,10 @@ public static class CourseEndpoints
     private static readonly ErrorResponse NotFound = new(["Not found."]);
     private static readonly ErrorResponse AlreadyEnrolled = new(["You're already enrolled in this course."]);
 
-    // Same pattern DashboardEndpoints.GetDashboardAsync already uses — see that file's comment
-    // on why this reads the raw "role"/"name" claims directly rather than RequireRole()/Identity.Name.
-    private static (string? UserId, string? Role, string? Name) CallerInfo(HttpContext http) => (
-        http.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value,
-        http.User.FindFirst("role")?.Value,
-        http.User.FindFirst(JwtRegisteredClaimNames.Name)?.Value);
-
     private static async Task<IResult> CreateCourseAsync(CreateCourseRequest request, HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, name) = CallerInfo(http);
-        if (userId is null || role != "Teacher")
+        var (userId, roles, name) = CallerContext.From(http);
+        if (userId is null || !roles.Contains("Teacher"))
         {
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }
@@ -74,8 +67,8 @@ public static class CourseEndpoints
 
     private static async Task<IResult> EnrollAsync(Guid courseId, HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, _) = CallerInfo(http);
-        if (userId is null || role != "Student")
+        var (userId, roles, _) = CallerContext.From(http);
+        if (userId is null || !roles.Contains("Student"))
         {
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }
@@ -112,8 +105,8 @@ public static class CourseEndpoints
     private static async Task<IResult> CreateMaterialAsync(
         Guid courseId, CreateMaterialRequest request, HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, _) = CallerInfo(http);
-        if (userId is null || role != "Teacher")
+        var (userId, roles, _) = CallerContext.From(http);
+        if (userId is null || !roles.Contains("Teacher"))
         {
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }
@@ -156,8 +149,8 @@ public static class CourseEndpoints
 
     private static async Task<IResult> SetMaterialStatusAsync(Guid materialId, MaterialStatus status, HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, _) = CallerInfo(http);
-        if (userId is null || role != "Teacher")
+        var (userId, roles, _) = CallerContext.From(http);
+        if (userId is null || !roles.Contains("Teacher"))
         {
             return Results.Json(Forbidden, statusCode: StatusCodes.Status403Forbidden);
         }
@@ -185,9 +178,9 @@ public static class CourseEndpoints
     // Student, since only Students can enroll.
     private static async Task<IResult> GetCourseCatalogAsync(HttpContext http, ApplicationDbContext db)
     {
-        var (userId, role, _) = CallerInfo(http);
+        var (userId, roles, _) = CallerContext.From(http);
 
-        var enrolledCourseIds = role == "Student"
+        var enrolledCourseIds = roles.Contains("Student")
             ? (await db.Enrollments.Where(e => e.StudentId == userId).Select(e => e.CourseId).ToListAsync()).ToHashSet()
             : new HashSet<Guid>();
 

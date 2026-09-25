@@ -19,7 +19,7 @@ public class CrossDeviceConcurrencyTests
         using var client = factory.CreateClient();
         const string email = "multi-device@example.com";
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(
-            email, "P@ssw0rd123!", "Multi Device", "Student", "web-1"));
+            email, "P@ssw0rd123!", "Multi Device", ["Student"], "web-1"));
 
         var webLogin = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, "P@ssw0rd123!", "web-1"));
         var mobileLogin = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, "P@ssw0rd123!", "mobile-1"));

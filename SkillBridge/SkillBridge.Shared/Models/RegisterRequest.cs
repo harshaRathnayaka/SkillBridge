@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SkillBridge.Shared.Models;
 
-public class RegisterRequest
+public class RegisterRequest : IValidatableObject
 {
     [Required(ErrorMessage = "Enter your name")]
     public string DisplayName { get; set; } = string.Empty;
@@ -19,6 +19,15 @@ public class RegisterRequest
     [Compare(nameof(Password), ErrorMessage = "Passwords do not match")]
     public string ConfirmPassword { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Choose a role")]
-    public Role? Role { get; set; }
+    // One account, several paths — pick as many as apply. [Required] doesn't fit a List<T>
+    // (an empty list still satisfies it), hence the explicit IValidatableObject check below.
+    public List<Role> Roles { get; set; } = [];
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Roles.Count == 0)
+        {
+            yield return new ValidationResult("Choose at least one role", [nameof(Roles)]);
+        }
+    }
 }
