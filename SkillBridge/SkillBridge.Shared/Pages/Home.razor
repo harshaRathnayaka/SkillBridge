@@ -16,13 +16,53 @@
         <p class="text-muted small mt-3">Running on <em>@factor</em> using <em>@platform</em>.</p>
     </Authorized>
     <NotAuthorized>
-        <div class="home-hero">
+        <div class="landing-hero">
+            <div class="landing-eyebrow">One account. Four paths.</div>
             <h1>Welcome to SkillBridge</h1>
-            <p class="text-muted">Build skills. Share knowledge. Find opportunity. One account, four paths.</p>
+            <p class="landing-subhead">Build skills. Share knowledge. Find opportunity — all from one account, whichever path you're on today.</p>
+            <div class="landing-cta-row">
+                <a class="btn btn-primary btn-lg landing-cta" href="/register">Create free account</a>
+                <a class="btn btn-outline-secondary btn-lg landing-cta" href="/login">Sign in</a>
+            </div>
         </div>
-        <div class="d-flex gap-2 mt-3">
-            <a class="btn btn-primary" href="/login">Sign in</a>
-            <a class="btn btn-outline-secondary" href="/register">Create account</a>
+
+        <div class="role-card-grid">
+            <RoleHighlightCard Accent="blue" Title="Student" Description="Enroll in real courses, track your lesson progress, and keep every teacher in one place.">
+                <Icon>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3 2 8l10 5 10-5-10-5Z" />
+                        <path d="M6 10.5V16c0 1.5 2.5 3 6 3s6-1.5 6-3v-5.5" />
+                        <path d="M22 8v6" />
+                    </svg>
+                </Icon>
+            </RoleHighlightCard>
+            <RoleHighlightCard Accent="teal" Title="Tutor" Description="Publish courses, manage materials, and see your classes fill up with real learners.">
+                <Icon>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="12" rx="1.5" />
+                        <path d="M8 20h8" />
+                        <path d="M12 16v4" />
+                        <path d="m7 12 3-3 2.5 2.5L17 8" />
+                    </svg>
+                </Icon>
+            </RoleHighlightCard>
+            <RoleHighlightCard Accent="amber" Title="Employer" Description="Post open roles and move candidates through your hiring pipeline stage by stage.">
+                <Icon>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="7" width="18" height="13" rx="2" />
+                        <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M3 13h18" />
+                    </svg>
+                </Icon>
+            </RoleHighlightCard>
+            <RoleHighlightCard Accent="violet" Title="Job seeker" Description="Browse open roles, filter by work mode, and apply in one click.">
+                <Icon>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="10.5" cy="10.5" r="6.5" />
+                        <path d="m20 20-4.35-4.35" />
+                    </svg>
+                </Icon>
+            </RoleHighlightCard>
         </div>
     </NotAuthorized>
 </AuthorizeView>

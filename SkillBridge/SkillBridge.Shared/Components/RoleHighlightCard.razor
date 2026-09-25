@@ -1,0 +1,20 @@
+<div class="role-card role-card-accent-@Accent">
+    <div class="role-card-icon">@Icon</div>
+    <div class="role-card-title">@Title</div>
+    <p class="role-card-description">@Description</p>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public RenderFragment Icon { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public string Description { get; set; } = "";
+
+    // "blue" | "teal" | "amber" | "violet" — matches the .role-card-accent-* classes in app.css.
+    [Parameter, EditorRequired]
+    public string Accent { get; set; } = "blue";
+}
