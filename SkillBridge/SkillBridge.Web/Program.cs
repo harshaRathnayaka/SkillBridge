@@ -30,8 +30,8 @@ public class Program
         // passthrough endpoints (Auth/ApiProxyEndpoints.cs), which exist so Web.Client (WASM)
         // can reach the ApiService same-origin without CORS. Locally (via the Aspire AppHost),
         // Aspire's service discovery resolves the "https+http://skillbridge-apiservice" scheme
-        // automatically; outside Aspire (e.g. deployed to Fly.io as a standalone container),
-        // set ApiService:BaseUrl explicitly to the ApiService's real reachable URL.
+        // automatically; outside Aspire (e.g. deployed as a standalone container), set
+        // ApiService:BaseUrl explicitly to the ApiService's real reachable URL.
         var apiServiceBaseUrl = builder.Configuration["ApiService:BaseUrl"] ?? "https+http://skillbridge-apiservice";
         builder.Services.AddHttpClient("ApiService", client =>
         {
@@ -65,7 +65,7 @@ public class Program
 
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 
-        // Skipped in production: Fly.io (and most PaaS hosts) terminate TLS at the edge and
+        // Skipped in production: Render (and most PaaS hosts) terminate TLS at the edge and
         // forward plain HTTP internally, so redirecting-to-HTTPS inside the container would
         // just loop.
         if (!app.Environment.IsProduction())
@@ -74,6 +74,11 @@ public class Program
         }
 
         app.UseAntiforgery();
+
+        // Same reasoning as ApiService's own /health — plain, dependency-free liveness signal,
+        // always mapped (unlike ServiceDefaults' Development-only /health), for whatever host's
+        // probe needs one.
+        app.MapGet("/health", () => Results.Ok());
 
         app.MapStaticAssets();
         app.MapAuthProxyEndpoints();

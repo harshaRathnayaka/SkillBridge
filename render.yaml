@@ -1,0 +1,38 @@
+# Render Blueprint — two Docker web services, mirroring the fly.apiservice.toml/fly.web.toml
+# setup this replaces. Import this file at render.com/blueprints (or connect the repo and Render
+# will find it automatically) to create both services in one step; the `sync: false` env vars
+# still need filling in by hand in Render's dashboard afterward — never commit real secrets here.
+services:
+  - type: web
+    name: skillbridge-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.apiservice
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Real Postgres connection string (Neon) — set manually, never committed.
+      - key: ConnectionStrings__SkillBridgeDb
+        sync: false
+      # Symmetric JWT signing key — set manually, never committed. Must differ from the
+      # dev-only placeholder in appsettings.json.
+      - key: Jwt__Key
+        sync: false
+      - key: Jwt__Issuer
+        value: SkillBridge.ApiService
+      - key: Jwt__Audience
+        value: SkillBridge
+
+  - type: web
+    name: skillbridge-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile.web
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Update to the real skillbridge-api URL Render assigns once that service exists.
+      - key: ApiService__BaseUrl
+        value: https://skillbridge-api.onrender.com
