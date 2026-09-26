@@ -10,6 +10,14 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
+    <!-- Pinned above the transitively-resolved 10.0.0, which carries a critical-severity
+         auth-cookie-forgery advisory (GHSA-9mv3-2cwr-p262 / CVE-2026-40372), fixed in 10.0.7+. -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.12" />
+    <!-- Real provider for production (Neon/any Postgres host). -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <!-- Sqlite stays only for ApiServiceTestFactory's fast in-memory test database — see
+         Program.cs's Database.IsNpgsql() branch for why tests never run the real (Postgres-shaped)
+         migrations against it. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
     <!-- Pin above the transitively-resolved 2.1.11, which has a known high-severity advisory (GHSA-2m69-gcr7-jv3q) -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />

@@ -7,7 +7,6 @@
 **/*.db-shm
 **/*.db-wal
 .github/
-.fly/
 SkillBridge.E2E.Tests/
 SkillBridge.ApiService.Tests/
 SkillBridge.AppHost/

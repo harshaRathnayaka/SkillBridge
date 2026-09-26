@@ -62,6 +62,23 @@ jobs:
     name: End-to-end tests (Playwright)
     runs-on: ubuntu-latest
     needs: build-and-unit-test
+    # Real ApiService.dll (not the xUnit suite's ApiServiceTestFactory) now runs on Npgsql —
+    # an ephemeral, free, GitHub-hosted Postgres service container gives it something real to
+    # migrate against, so E2E still exercises the actual production database engine.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: skillbridge
+          POSTGRES_PASSWORD: skillbridge
+          POSTGRES_DB: skillbridge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -94,6 +111,7 @@ jobs:
           # full E2E run comfortably exceeds (each test registers at least one account) —
           # widened here the same way ApiServiceTestFactory widens it for the xUnit suite.
           RateLimiting__AuthPermitLimit: '10000'
+          ConnectionStrings__SkillBridgeDb: "Host=localhost;Database=skillbridge;Username=skillbridge;Password=skillbridge"
 
       # Aspire service discovery's env-var format uses a hyphen in the service name
       # ("skillbridge-apiservice"), which only works via a literal `env:` key (not bash
@@ -136,32 +154,13 @@ jobs:
           name: e2e-test-results
           path: test-results/*.trx
 
-  # The three jobs below only run once both test jobs pass, AND only on a real push to master
+  # The two jobs below only run once both test jobs pass, AND only on a real push to master
   # (never on a pull_request event) — merging is what ships a feature, so that's what triggers
-  # deploy + installer builds, not every PR push. They have no dependency on each other, so
-  # GitHub Actions runs them concurrently.
-  deploy-fly:
-    name: Deploy to Fly.io
-    runs-on: ubuntu-latest
-    needs: [build-and-unit-test, e2e-test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-
-      # Docker is preinstalled on GitHub-hosted runners, so a local build here is simpler and
-      # more reliable than relying on Fly's remote builder infrastructure.
-      - name: Deploy ApiService
-        run: flyctl deploy -a skillbridge-api -c fly.apiservice.toml --local-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: Deploy Web
-        run: flyctl deploy -a skillbridge-web -c fly.web.toml --local-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
+  # installer builds, not every PR push. They have no dependency on each other, so GitHub
+  # Actions runs them concurrently. Deployment itself isn't a job here at all: Render's own
+  # GitHub integration watches this repo directly and redeploys both web services on push to
+  # master — no deploy token/secret needed on this side (see
+  # SkillBridge/SkillBridge/Services/ApiConfig.cs for the live API URL these builds point at).
   build-windows-exe:
     name: Build Windows EXE
     runs-on: windows-latest

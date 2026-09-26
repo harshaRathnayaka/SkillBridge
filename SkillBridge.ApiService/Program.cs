@@ -2,6 +2,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -21,17 +22,15 @@ builder.AddServiceDefaults();
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("SkillBridgeDb")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("SkillBridgeDb")));
 
-var dataProtection = builder.Services.AddDataProtection();
-if (builder.Environment.IsProduction())
-{
-    // Keeps password-reset/email-confirmation tokens valid across container restarts —
-    // without this, ASP.NET Core's default ephemeral key ring is regenerated on every
-    // redeploy and every outstanding token silently stops validating. Written to the same
-    // persistent volume the SQLite file lives on (see Dockerfile/fly.toml).
-    dataProtection.PersistKeysToFileSystem(new DirectoryInfo("/data/keys"));
-}
+// Keeps password-reset/email-confirmation tokens valid across container restarts — without
+// this, ASP.NET Core's default ephemeral key ring is regenerated on every redeploy and every
+// outstanding token silently stops validating. Stored in the same Postgres database as
+// everything else rather than a local file/volume, since the compute host (Render's free tier,
+// like every other card-free host) has no persistent disk at all.
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<ApplicationDbContext>();
 
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
@@ -115,10 +114,29 @@ app.MapDashboardEndpoints();
 app.MapCourseEndpoints();
 app.MapJobEndpoints();
 
+// Deliberately dependency-free (no DB check) and always mapped, unlike
+// SkillBridge.ServiceDefaults' own /health (Development-only, by design — see its comment on
+// why exposing detailed health-check results in production has security implications). This is
+// just a plain "the process is up" signal for whatever host's liveness probe needs one (Render,
+// or anything else) — it doesn't reveal anything about the database or its connection state.
+app.MapGet("/health", () => Results.Ok());
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+
+    // Production (Npgsql) always runs the real, committed migrations. ApiServiceTestFactory
+    // swaps in a SQLite connection for speed — SQLite can't apply Postgres-shaped migration DDL,
+    // so tests instead build the schema directly from the current model.
+    if (db.Database.IsNpgsql())
+    {
+        await db.Database.MigrateAsync();
+    }
+    else
+    {
+        await db.Database.EnsureCreatedAsync();
+    }
+
     await RoleSeeder.SeedAsync(scope.ServiceProvider);
 }
 
@@ -127,7 +145,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// Skipped in production: Fly.io (and most PaaS hosts) terminate TLS at the edge and forward
+// Skipped in production: Render (and most PaaS hosts) terminate TLS at the edge and forward
 // plain HTTP internally, so redirecting-to-HTTPS inside the container would just loop.
 if (!app.Environment.IsProduction())
 {
