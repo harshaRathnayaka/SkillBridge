@@ -27,8 +27,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Keeps password-reset/email-confirmation tokens valid across container restarts — without
 // this, ASP.NET Core's default ephemeral key ring is regenerated on every redeploy and every
 // outstanding token silently stops validating. Stored in the same Postgres database as
-// everything else rather than a local file/volume, since the compute host (Render's free tier,
-// like every other card-free host) has no persistent disk at all.
+// everything else rather than a local file/volume, since the compute host (SnapDeploy's free
+// tier, like every other card-free host) has no persistent disk at all.
 builder.Services.AddDataProtection()
     .PersistKeysToDbContext<ApplicationDbContext>();
 
@@ -117,8 +117,9 @@ app.MapJobEndpoints();
 // Deliberately dependency-free (no DB check) and always mapped, unlike
 // SkillBridge.ServiceDefaults' own /health (Development-only, by design — see its comment on
 // why exposing detailed health-check results in production has security implications). This is
-// just a plain "the process is up" signal for whatever host's liveness probe needs one (Render,
-// or anything else) — it doesn't reveal anything about the database or its connection state.
+// just a plain "the process is up" signal for whatever host's liveness probe needs one
+// (SnapDeploy, or anything else) — it doesn't reveal anything about the database or its
+// connection state.
 app.MapGet("/health", () => Results.Ok());
 
 using (var scope = app.Services.CreateScope())
@@ -145,7 +146,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// Skipped in production: Render (and most PaaS hosts) terminate TLS at the edge and forward
+// Skipped in production: SnapDeploy (and most PaaS hosts) terminate TLS at the edge and forward
 // plain HTTP internally, so redirecting-to-HTTPS inside the container would just loop.
 if (!app.Environment.IsProduction())
 {
