@@ -1,5 +1,5 @@
 # Builds and runs SkillBridge.Web (+ its WASM Web.Client head) standalone for deployment to a
-# real host like Fly.io. Build context is the repo root so the SkillBridge.ServiceDefaults and
+# real host. Build context is the repo root so the SkillBridge.ServiceDefaults and
 # SkillBridge.Shared project references resolve.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
