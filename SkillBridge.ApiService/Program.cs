@@ -146,12 +146,12 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// Skipped in production: SnapDeploy (and most PaaS hosts) terminate TLS at the edge and forward
-// plain HTTP internally, so redirecting-to-HTTPS inside the container would just loop.
-if (!app.Environment.IsProduction())
-{
-    app.UseHttpsRedirection();
-}
+// Not used at all, on any host: every PaaS this app has run on (Fly.io, Render, SnapDeploy)
+// terminates TLS at the edge and forwards plain HTTP internally, so this middleware would just
+// redirect-loop against itself if it ever ran — observed in practice on SnapDeploy, where it
+// fired despite the container being configured for Production. Gating it on
+// Environment.IsProduction() assumes that env var is reliably honored by the host, which isn't
+// true everywhere; simplest fix is to not depend on it being right.
 
 app.Run();
 
