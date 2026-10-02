@@ -46,6 +46,7 @@ public class Program
         builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>();
         builder.Services.AddHttpClient<IDashboardApiClient, DashboardApiClient>();
         builder.Services.AddHttpClient<IMarketplaceApiClient, MarketplaceApiClient>();
+        builder.Services.AddHttpClient<IProfileApiClient, ProfileApiClient>();
 
         var app = builder.Build();
 
@@ -84,6 +85,7 @@ public class Program
         app.MapAuthProxyEndpoints();
         app.MapDashboardProxyEndpoints();
         app.MapMarketplaceProxyEndpoints();
+        app.MapProfileProxyEndpoints();
         app.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode()
             .AddInteractiveWebAssemblyRenderMode()

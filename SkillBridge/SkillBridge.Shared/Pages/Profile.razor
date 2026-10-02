@@ -1,0 +1,301 @@
+@page "/profile"
+@inject IProfileApiClient ProfileApiClient
+@inject IAuthTokenStore TokenStore
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Profile</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="home-hero">
+            <h1>Your profile</h1>
+            <p class="text-muted">A complete profile helps teachers, learners and employers trust you.</p>
+        </div>
+
+        @if (loading)
+        {
+            <p class="text-muted small">Loading your profile…</p>
+        }
+        else if (profile is null)
+        {
+            <p class="text-muted small">Couldn't load your profile right now.</p>
+        }
+        else
+        {
+            <div class="dashboard-card mb-3">
+                <div class="dashboard-card-head">
+                    <div class="dashboard-card-title">Profile strength</div>
+                    <span class="dashboard-badge" data-testid="profile-strength">@profile.StrengthPercent%</span>
+                </div>
+                <ProgressBar Percent="profile.StrengthPercent" />
+                @if (profile.StrengthNote is not null)
+                {
+                    <p class="text-muted small mt-2 mb-0">@profile.StrengthNote</p>
+                }
+            </div>
+
+            <div class="dashboard-card mb-3">
+                <div class="dashboard-card-title mb-2">About you</div>
+                @if (detailsError is not null)
+                {
+                    <div class="alert alert-danger py-1 px-2 small mb-2">@detailsError</div>
+                }
+                <div class="mb-2">
+                    <label class="form-label small mb-1" for="profile-headline">Headline</label>
+                    <input id="profile-headline" class="form-control form-control-sm" maxlength="@HeadlineMaxLength"
+                           @bind="headline" @bind:event="oninput" placeholder="e.g. Maths tutor and curriculum designer" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small mb-1" for="profile-bio">Bio</label>
+                    <textarea id="profile-bio" class="form-control form-control-sm" rows="4" maxlength="@BioMaxLength"
+                              @bind="bio" @bind:event="oninput" placeholder="A few sentences about you"></textarea>
+                </div>
+                <button class="btn btn-sm btn-primary" disabled="@busy" @onclick="SaveDetailsAsync">Save profile</button>
+            </div>
+
+            <div class="dashboard-card mb-3">
+                <div class="dashboard-card-title mb-2">Skills</div>
+                @if (skillError is not null)
+                {
+                    <div class="alert alert-danger py-1 px-2 small mb-2">@skillError</div>
+                }
+                @if (profile.Skills.Count == 0)
+                {
+                    <p class="text-muted small">No skills yet — add up to @MaxSkills.</p>
+                }
+                else
+                {
+                    <div class="filter-chip-row mb-2">
+                        @foreach (var skill in profile.Skills)
+                        {
+                            <span class="filter-chip">
+                                @skill.Name
+                                <button type="button" class="btn-close ms-1" style="font-size: 0.6rem;" aria-label="Remove skill @skill.Name"
+                                        disabled="@busy" @onclick="() => RemoveSkillAsync(skill.Id)"></button>
+                            </span>
+                        }
+                    </div>
+                }
+                <div class="d-flex gap-2">
+                    <input class="form-control form-control-sm" aria-label="Skill name" maxlength="@SkillMaxLength"
+                           @bind="newSkill" @bind:event="oninput" placeholder="Add a skill" />
+                    <button class="btn btn-sm btn-primary" disabled="@busy" @onclick="AddSkillAsync">Add skill</button>
+                </div>
+            </div>
+
+            @if (showReferences)
+            {
+                <div class="dashboard-card mb-3">
+                    <div class="dashboard-card-title mb-2">@referencesLabel</div>
+                    @if (referenceError is not null)
+                    {
+                        <div class="alert alert-danger py-1 px-2 small mb-2">@referenceError</div>
+                    }
+                    @foreach (var reference in profile.References)
+                    {
+                        <div class="dashboard-card-head mb-2">
+                            <div>
+                                <div class="fw-semibold">@reference.Name <span class="text-muted small">· @reference.Relationship</span></div>
+                                @if (!string.IsNullOrWhiteSpace(reference.Contact))
+                                {
+                                    <div class="text-muted small">@reference.Contact</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(reference.Comment))
+                                {
+                                    <div class="small">@reference.Comment</div>
+                                }
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" disabled="@busy"
+                                    aria-label="Remove reference @reference.Name"
+                                    @onclick="() => RemoveReferenceAsync(reference.Id)">Remove</button>
+                        </div>
+                    }
+                    @if (profile.References.Count == 0)
+                    {
+                        <p class="text-muted small">Nothing here yet — add up to @MaxReferences.</p>
+                    }
+                    <div class="row g-2 mb-2">
+                        <div class="col">
+                            <input class="form-control form-control-sm" aria-label="Reference name" maxlength="@ReferenceFieldMaxLength"
+                                   @bind="refName" @bind:event="oninput" placeholder="Reference name" />
+                        </div>
+                        <div class="col">
+                            <input class="form-control form-control-sm" aria-label="Relationship" maxlength="@ReferenceFieldMaxLength"
+                                   @bind="refRelationship" @bind:event="oninput" placeholder="Relationship" />
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col">
+                            <input class="form-control form-control-sm" aria-label="Contact" maxlength="@ReferenceFieldMaxLength"
+                                   @bind="refContact" @bind:event="oninput" placeholder="Email or phone (optional)" />
+                        </div>
+                        <div class="col">
+                            <input class="form-control form-control-sm" aria-label="Comment" maxlength="@ReferenceCommentMaxLength"
+                                   @bind="refComment" @bind:event="oninput" placeholder="Comment (optional)" />
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-primary" disabled="@busy" @onclick="AddReferenceAsync">Add reference</button>
+                </div>
+            }
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p><a href="/login">Sign in</a> to edit your profile.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private const int HeadlineMaxLength = 120;
+    private const int BioMaxLength = 1000;
+    private const int SkillMaxLength = 40;
+    private const int MaxSkills = 20;
+    private const int MaxReferences = 10;
+    private const int ReferenceFieldMaxLength = 100;
+    private const int ReferenceCommentMaxLength = 300;
+
+    private ProfileInfo? profile;
+    private bool loading = true;
+    private bool busy;
+    private string? accessToken;
+    private bool showReferences;
+    private string referencesLabel = "References";
+
+    private string headline = "";
+    private string bio = "";
+    private string newSkill = "";
+    private string refName = "";
+    private string refRelationship = "";
+    private string refContact = "";
+    private string refComment = "";
+
+    private string? detailsError;
+    private string? skillError;
+    private string? referenceError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        var isTeacher = user.IsInRole("Teacher");
+        var isJobSeeker = user.IsInRole("JobSeeker");
+        showReferences = isTeacher || isJobSeeker;
+        // A Teacher-only account is vouched for by endorsements; job seekers (even ones who also
+        // teach) supply references.
+        referencesLabel = isTeacher && !isJobSeeker ? "Endorsements" : "References";
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        accessToken = await TokenStore.GetAccessTokenAsync();
+        if (accessToken is not null)
+        {
+            profile = await ProfileApiClient.GetProfileAsync(accessToken);
+            if (profile is not null)
+            {
+                headline = profile.Headline;
+                bio = profile.Bio;
+            }
+        }
+
+        loading = false;
+    }
+
+    private async Task SaveDetailsAsync()
+    {
+        detailsError = null;
+        var trimmedHeadline = headline.Trim();
+        var trimmedBio = bio.Trim();
+        if (trimmedHeadline.Length > HeadlineMaxLength)
+        {
+            detailsError = $"Headline can be at most {HeadlineMaxLength} characters.";
+            return;
+        }
+        if (trimmedBio.Length > BioMaxLength)
+        {
+            detailsError = $"Bio can be at most {BioMaxLength} characters.";
+            return;
+        }
+
+        await RunAsync(token => ProfileApiClient.UpdateProfileAsync(token, trimmedHeadline, trimmedBio), error => detailsError = error);
+    }
+
+    private async Task AddSkillAsync()
+    {
+        skillError = null;
+        var name = newSkill.Trim();
+        if (name.Length is 0 or > SkillMaxLength)
+        {
+            skillError = $"A skill name must be 1-{SkillMaxLength} characters.";
+            return;
+        }
+        if (profile!.Skills.Count >= MaxSkills)
+        {
+            skillError = $"You can list at most {MaxSkills} skills.";
+            return;
+        }
+
+        if (await RunAsync(token => ProfileApiClient.AddSkillAsync(token, name), error => skillError = error))
+        {
+            newSkill = "";
+        }
+    }
+
+    private Task RemoveSkillAsync(Guid skillId)
+    {
+        skillError = null;
+        return RunAsync(token => ProfileApiClient.RemoveSkillAsync(token, skillId), error => skillError = error);
+    }
+
+    private async Task AddReferenceAsync()
+    {
+        referenceError = null;
+        var name = refName.Trim();
+        var relationship = refRelationship.Trim();
+        if (name.Length == 0 || relationship.Length == 0)
+        {
+            referenceError = "A name and relationship are required.";
+            return;
+        }
+        if (profile!.References.Count >= MaxReferences)
+        {
+            referenceError = $"You can list at most {MaxReferences} entries.";
+            return;
+        }
+
+        var contact = string.IsNullOrWhiteSpace(refContact) ? null : refContact.Trim();
+        var comment = string.IsNullOrWhiteSpace(refComment) ? null : refComment.Trim();
+        if (await RunAsync(token => ProfileApiClient.AddReferenceAsync(token, name, relationship, contact, comment), error => referenceError = error))
+        {
+            refName = refRelationship = refContact = refComment = "";
+        }
+    }
+
+    private Task RemoveReferenceAsync(Guid referenceId)
+    {
+        referenceError = null;
+        return RunAsync(token => ProfileApiClient.RemoveReferenceAsync(token, referenceId), error => referenceError = error);
+    }
+
+    // Runs one write, surfaces the first server error via setError, and reloads the profile on
+    // success (a single write can change the strength score as well as the list it touched).
+    private async Task<bool> RunAsync(Func<string, Task<MarketplaceApiResult>> action, Action<string> setError)
+    {
+        if (accessToken is null)
+        {
+            return false;
+        }
+
+        busy = true;
+        var result = await action(accessToken);
+        busy = false;
+        if (!result.Succeeded)
+        {
+            setError(result.Errors.FirstOrDefault() ?? "Something went wrong. Please try again.");
+            return false;
+        }
+
+        await LoadAsync();
+        return true;
+    }
+}
