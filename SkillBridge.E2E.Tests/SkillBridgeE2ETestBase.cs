@@ -12,6 +12,14 @@ public abstract class SkillBridgeE2ETestBase : PageTest
     protected static string BaseUrl =>
         Environment.GetEnvironmentVariable("SKILLBRIDGE_E2E_BASE_URL") ?? "http://localhost:5121";
 
+    // Playwright's default 5s Expect timeout assumes a local database. A page that loads after a
+    // fresh login makes several sequential API calls, and against a remote database (e.g. Neon,
+    // ~270ms+ per query) that can exceed 5s even though the data is correct.
+    [OneTimeSetUp]
+    public void ConfigureExpectTimeout() =>
+        Assertions.SetDefaultExpectTimeout(
+            int.TryParse(Environment.GetEnvironmentVariable("SKILLBRIDGE_E2E_EXPECT_TIMEOUT_MS"), out var ms) ? ms : 15_000);
+
     protected static string UniqueEmail(string label) =>
         $"{label}-{Guid.NewGuid():N}@example.com";
 
