@@ -78,12 +78,16 @@ public static class JobEndpoints
             return Results.Json(AlreadyApplied, statusCode: StatusCodes.Status409Conflict);
         }
 
+        // Snapshotted at apply time (like ApplicantName), so the employer's pipeline keeps showing
+        // what the candidate's headline was when they applied.
+        var applicantProfile = await db.UserProfiles.FindAsync(userId);
+
         var application = new JobApplication
         {
             Id = Guid.NewGuid(),
             ApplicantId = userId,
             ApplicantName = name ?? "Job seeker",
-            ApplicantHeadline = "",
+            ApplicantHeadline = applicantProfile?.Headline ?? "",
             RateLabel = posting.RateLabel,
             JobPostingId = jobPostingId,
             Stage = ApplicationStage.New,

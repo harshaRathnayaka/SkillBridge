@@ -77,12 +77,32 @@ public static class ApiProxyEndpoints
         return app;
     }
 
+    // Same reasoning again, for the signed-in user's own profile (bio, skills, references).
+    public static IEndpointRouteBuilder MapProfileProxyEndpoints(this IEndpointRouteBuilder app)
+    {
+        var profile = app.MapGroup("/api/profile").AllowAnonymous();
+        profile.MapGet("/", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Get, "/api/profile"));
+        profile.MapPut("/", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Put, "/api/profile"));
+        profile.MapPost("/skills", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Post, "/api/profile/skills"));
+        profile.MapDelete("/skills/{skillId}", (HttpContext http, IHttpClientFactory f, string skillId) =>
+            ForwardAsync(http, f, HttpMethod.Delete, $"/api/profile/skills/{skillId}"));
+        profile.MapPost("/references", (HttpContext http, IHttpClientFactory f) =>
+            ForwardAsync(http, f, HttpMethod.Post, "/api/profile/references"));
+        profile.MapDelete("/references/{referenceId}", (HttpContext http, IHttpClientFactory f, string referenceId) =>
+            ForwardAsync(http, f, HttpMethod.Delete, $"/api/profile/references/{referenceId}"));
+        return app;
+    }
+
     private static async Task ForwardAsync(HttpContext http, IHttpClientFactory httpClientFactory, HttpMethod method, string upstreamPath)
     {
         var client = httpClientFactory.CreateClient("ApiService");
         using var upstreamRequest = new HttpRequestMessage(method, upstreamPath);
 
-        if (method != HttpMethod.Get)
+        // Only POST/PUT carry a body; GET and DELETE are forwarded body-less.
+        if (method == HttpMethod.Post || method == HttpMethod.Put)
         {
             var content = new StreamContent(http.Request.Body);
             content.Headers.ContentType = MediaTypeHeaderValue.Parse(http.Request.ContentType ?? "application/json");

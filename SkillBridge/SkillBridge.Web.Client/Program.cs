@@ -38,6 +38,12 @@ class Program
             client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
         });
 
+        // Same reasoning again, via the /api/profile proxy (ApiProxyEndpoints.MapProfileProxyEndpoints).
+        builder.Services.AddHttpClient<IProfileApiClient, ProfileApiClient>(client =>
+        {
+            client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
+        });
+
         await builder.Build().RunAsync();
     }
 }

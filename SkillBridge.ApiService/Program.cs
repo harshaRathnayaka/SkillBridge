@@ -15,6 +15,7 @@ using SkillBridge.ApiService.Data;
 using SkillBridge.ApiService.Data.Seed;
 using SkillBridge.ApiService.Email;
 using SkillBridge.ApiService.Jobs;
+using SkillBridge.ApiService.Profiles;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -121,6 +122,7 @@ app.MapAuthEndpoints();
 app.MapDashboardEndpoints();
 app.MapCourseEndpoints();
 app.MapJobEndpoints();
+app.MapProfileEndpoints();
 
 // Deliberately dependency-free (no DB check) and always mapped, unlike
 // SkillBridge.ServiceDefaults' own /health (Development-only, by design — see its comment on
