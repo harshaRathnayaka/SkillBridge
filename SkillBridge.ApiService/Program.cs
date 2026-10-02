@@ -21,8 +21,16 @@ builder.AddServiceDefaults();
 
 builder.Services.AddOpenApi();
 
+// EnableRetryOnFailure: Neon's serverless Postgres scales to zero and briefly cycles its
+// underlying connection on resume, which surfaces to Npgsql as a genuine transient failure
+// ("connection forcibly closed") rather than a clean timeout — confirmed in practice (every
+// query on the request, including the user-lookup inside registration/login, can hit this, not
+// just the first one after idle). Without a retry policy this reaches the client as an
+// unhandled 500; Npgsql's own execution strategy retries the whole operation transparently.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("SkillBridgeDb")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("SkillBridgeDb"),
+        npgsqlOptions => npgsqlOptions.EnableRetryOnFailure()));
 
 // Keeps password-reset/email-confirmation tokens valid across container restarts — without
 // this, ASP.NET Core's default ephemeral key ring is regenerated on every redeploy and every
@@ -131,7 +139,24 @@ using (var scope = app.Services.CreateScope())
     // so tests instead build the schema directly from the current model.
     if (db.Database.IsNpgsql())
     {
-        await db.Database.MigrateAsync();
+        // EnableRetryOnFailure (above) only covers operations issued through the DbContext's
+        // normal execution-strategy path — it doesn't reach this very first connection attempt,
+        // and Npgsql doesn't treat DNS/connect-timeout failures as transient anyway (unlike a
+        // mid-query connection drop, which does get retried). Neon scales to zero, so the app
+        // can genuinely start up at the exact moment its compute is still waking — a manual
+        // retry here covers that case directly rather than crashing the whole process on it.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await db.Database.MigrateAsync();
+                break;
+            }
+            catch (Exception) when (attempt < 5)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
+            }
+        }
     }
     else
     {
@@ -141,10 +166,16 @@ using (var scope = app.Services.CreateScope())
     await RoleSeeder.SeedAsync(scope.ServiceProvider);
 }
 
-if (app.Environment.IsDevelopment())
+// Mapped unconditionally (not just Development) so third parties integrating with the API can
+// browse/try it without needing access to this codebase or a running dev environment — it only
+// exposes the API's shape (routes, request/response contracts), not any data; every endpoint
+// still enforces its own normal authorization when actually called.
+app.MapOpenApi();
+app.UseSwaggerUI(options =>
 {
-    app.MapOpenApi();
-}
+    options.SwaggerEndpoint("/openapi/v1.json", "SkillBridge API v1");
+    options.RoutePrefix = "swagger";
+});
 
 // Not used at all, on any host: every PaaS this app has run on (Fly.io, Render, SnapDeploy)
 // terminates TLS at the edge and forwards plain HTTP internally, so this middleware would just
