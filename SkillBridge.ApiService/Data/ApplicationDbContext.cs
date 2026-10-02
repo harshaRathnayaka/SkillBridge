@@ -17,6 +17,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<JobPosting> JobPostings => Set<JobPosting>();
     public DbSet<JobApplication> JobApplications => Set<JobApplication>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<Skill> Skills => Set<Skill>();
+    public DbSet<UserSkill> UserSkills => Set<UserSkill>();
+    public DbSet<ProfileReference> ProfileReferences => Set<ProfileReference>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -69,6 +72,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<UserProfile>(entity =>
         {
             entity.HasKey(p => p.UserId);
+        });
+
+        builder.Entity<Skill>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.HasIndex(s => s.NormalizedName).IsUnique();
+        });
+
+        builder.Entity<UserSkill>(entity =>
+        {
+            entity.HasKey(us => us.Id);
+            entity.HasIndex(us => new { us.UserId, us.SkillId }).IsUnique();
+        });
+
+        builder.Entity<ProfileReference>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.HasIndex(r => r.UserId);
         });
     }
 }

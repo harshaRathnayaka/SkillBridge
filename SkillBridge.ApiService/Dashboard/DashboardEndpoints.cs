@@ -3,6 +3,7 @@ using SkillBridge.ApiService.Auth;
 using SkillBridge.ApiService.Auth.Contracts;
 using SkillBridge.ApiService.Data;
 using SkillBridge.ApiService.Dashboard.Contracts;
+using SkillBridge.ApiService.Profiles;
 
 namespace SkillBridge.ApiService.Dashboard;
 
@@ -211,13 +212,17 @@ public static class DashboardEndpoints
 
         var newMatchesThisWeek = unappliedPostings.Count(j => j.PostedAt >= weekAgo);
 
+        // This dashboard is only built for accounts holding the JobSeeker role, so references
+        // always count toward the score here.
+        var strength = await ProfileStrength.ForUserAsync(db, jobSeekerId, referencesApply: true);
+
         return new JobSeekerDashboard(
             NewMatchesThisWeek: newMatchesThisWeek,
             ApplicationsCount: myApplications.Count,
             AtInterview: myApplications.Count(a => a.Stage == ApplicationStage.Interview),
             SavedRoles: profile?.SavedRoles ?? 0,
-            ProfileStrengthPercent: profile?.ProfileStrengthPercent,
-            ProfileStrengthNote: profile?.ProfileStrengthNote,
+            ProfileStrengthPercent: strength.Percent,
+            ProfileStrengthNote: strength.Note,
             Matches: matches,
             MyApplications: myApplicationSummaries);
     }
