@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using SkillBridge.ApiService.Auth.Contracts;
 using SkillBridge.ApiService.Data;
 using SkillBridge.ApiService.Data.Seed;
@@ -252,6 +253,21 @@ public static class AuthEndpoints
             return Results.BadRequest(new ErrorResponse([$"'{unrecognized[0]}' is not a recognized role."]));
         }
 
+        // DisplayName/DeviceId are plain required strings on the contract, not Identity-managed
+        // fields — UserManager.CreateAsync's own validators don't check them, so a request
+        // missing either previously reached the database and surfaced as a raw, unhandled
+        // DbUpdateException (NOT NULL constraint) instead of a clean 400. Caught this testing
+        // the now-public Swagger surface with an incomplete request.
+        if (string.IsNullOrWhiteSpace(request.DisplayName))
+        {
+            return Results.BadRequest(new ErrorResponse(["Display name is required."]));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.DeviceId))
+        {
+            return Results.BadRequest(new ErrorResponse(["Device ID is required."]));
+        }
+
         var user = new ApplicationUser
         {
             UserName = request.Email,
@@ -259,7 +275,29 @@ public static class AuthEndpoints
             DisplayName = request.DisplayName,
         };
 
-        var createResult = await userManager.CreateAsync(user, request.Password);
+        IdentityResult createResult;
+        try
+        {
+            createResult = await userManager.CreateAsync(user, request.Password);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateUserKey(ex))
+        {
+            // EnableRetryOnFailure (Program.cs) can resend this INSERT after a connection drop
+            // that happened *after* Postgres already committed it but before the ack reached us
+            // — confirmed in practice against Neon. The retried insert then collides with the
+            // row that's already really there. UserValidator already checked for an existing
+            // username before we got here, so reaching this on a fresh registration means it's
+            // our own retried write, not a genuine conflict — recover by treating it as success.
+            var existing = await userManager.FindByEmailAsync(request.Email);
+            if (existing is null)
+            {
+                throw;
+            }
+
+            user = existing;
+            createResult = IdentityResult.Success;
+        }
+
         if (!createResult.Succeeded)
         {
             return Results.BadRequest(new ErrorResponse(createResult.Errors.Select(e => e.Description).ToArray()));
@@ -267,7 +305,16 @@ public static class AuthEndpoints
 
         foreach (var roleName in requestedRoles)
         {
-            await userManager.AddToRoleAsync(user, roleName);
+            try
+            {
+                await userManager.AddToRoleAsync(user, roleName);
+            }
+            catch (DbUpdateException ex) when (IsDuplicateUserKey(ex))
+            {
+                // Same retry-collision as above (PK_AspNetUserRoles this time) — the role was
+                // already assigned by the attempt whose acknowledgment got lost, so there's
+                // nothing left to do for this one.
+            }
         }
 
         var roles = await userManager.GetRolesAsync(user);
@@ -294,6 +341,13 @@ public static class AuthEndpoints
 
         return Results.Ok(new AuthResponse(accessToken, refreshToken, expiresAtUtc, roles.ToArray(), user.DisplayName));
     }
+
+    // Not pinned to a specific constraint name (the primary key, or Identity's UserNameIndex,
+    // can each be the one that trips first depending on timing) — any unique violation reached
+    // from this specific retried CreateAsync call is the same retry-collision phenomenon, since
+    // UserValidator already checked for an existing username moments earlier.
+    private static bool IsDuplicateUserKey(DbUpdateException ex) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 
     private static readonly ErrorResponse AlreadyHasRole = new(["You already have this role."]);
 
